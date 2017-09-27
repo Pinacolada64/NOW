@@ -94,10 +94,10 @@ def affect(text, *args, **kwargs):
     target = None
     if len(args) > 0:
         target = unicode(args[0])
-    player = session.player
+    account = session.account
     character = session.get_puppet()
     if target == character:
         pass  # Trait of target(s) are possibly affected.
-    trait = text + player.key + character.key
+    trait = text + account.key + character.key
 
     return trait

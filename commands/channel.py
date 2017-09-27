@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from commands.command import MuxPlayerCommand
+from commands.command import MuxAccountCommand
 from django.conf import settings
 from evennia.comms.models import ChannelDB, Msg
 from evennia.comms.channelhandler import CHANNELHANDLER
@@ -32,9 +32,9 @@ def find_channel(caller, channel_name, silent=False, noaliases=False):
     return channels[0]
 
 
-class CmdChannels(MuxPlayerCommand):
+class CmdChannels(MuxAccountCommand):
     """
-    Channels provide communication with a group of other players based on a
+    Channels provide communication with a group of other accounts based on a
     particular interest or subject.  Channels are free of being at a particular
     location. Channels use their alias as the command to post to then.
     Usage:
@@ -55,8 +55,8 @@ class CmdChannels(MuxPlayerCommand):
     /desc <channel> = <description>  to describe a channel.
     /emit <channel> = <message>   to emit to channel.
     /name <channel> = <message>   sends to channel as if you're joined.
-    /remove <channel> = <player> [:reason]  to remove a player from the channel.
-    /quiet <channel> = <player>[:reason]    to remove the user quietly.
+    /remove <channel> = <account> [:reason]  to remove an account from the channel.
+    /quiet <channel> = <account>[:reason]    to remove the user quietly.
     """
     key = 'channel'
     aliases = ['chan', 'channels']
@@ -123,7 +123,7 @@ class CmdChannels(MuxPlayerCommand):
             if not channel.has_connection(caller):
                 # we want to connect as well.
                 if not channel.connect(caller):
-                    # if this would have returned True, the player is connected
+                    # if this would have returned True, the account is connected
                     self.msg("%s: You are not able to join this channel." % channel.key)
                     return
                 else:
@@ -186,7 +186,7 @@ class CmdChannels(MuxPlayerCommand):
             string += " of |w%s:|n " % channel.key
             subs = channel.db_subscriptions.all()
             if subs:
-                string += ", ".join([player.key for player in subs])
+                string += ", ".join([account.key for account in subs])
             else:
                 string += "<None>"
             self.msg(string.strip())
@@ -273,7 +273,7 @@ class CmdChannels(MuxPlayerCommand):
                     string += "\n|w%s:|n\n" % channel.key
                     subs = channel.db_subscriptions.all()
                     if subs:
-                        string += "  " + ", ".join([player.key for player in subs])
+                        string += "  " + ", ".join([account.key for account in subs])
                     else:
                         string += "  <None>"
                 self.msg(string.strip())
@@ -283,7 +283,7 @@ class CmdChannels(MuxPlayerCommand):
         elif 'remove' in self.switches or 'quiet' in self.switches:
             if not self.args or not self.rhs:
                 switch = 'remove' if 'remove' in self.switches else 'quiet'
-                string = "Usage: %s/%s <channel> = <player> [:reason]" % (self.cmdstring, switch)
+                string = "Usage: %s/%s <channel> = <account> [:reason]" % (self.cmdstring, switch)
                 self.msg(string)
                 return
             channel = find_channel(self.caller, self.lhs)
@@ -291,12 +291,12 @@ class CmdChannels(MuxPlayerCommand):
                 return
             reason = ''
             if ":" in self.rhs:
-                player_name, reason = self.rhs.rsplit(":", 1)
-                search_string = player_name.lstrip('*')
+                account_name, reason = self.rhs.rsplit(":", 1)
+                search_string = account_name.lstrip('*')
             else:
                 search_string = self.rhs.lstrip('*')
-            player = self.caller.search(search_string, player=True)
-            if not player:
+            account = self.caller.search(search_string, account=True)
+            if not account:
                 return
             if reason:
                 reason = " (reason: %s)" % reason
@@ -304,19 +304,19 @@ class CmdChannels(MuxPlayerCommand):
                 string = "You don't control this channel."
                 self.msg(string)
                 return
-            if player not in channel.db_subscriptions.all():
-                string = "Player %s is not connected to channel %s." % (player.key, channel.key)
+            if account not in channel.db_subscriptions.all():
+                string = "Account %s is not connected to channel %s." % (account.key, channel.key)
                 self.msg(string)
                 return
             if 'quiet' not in self.switches:
-                string = "%s boots %s from channel.%s" % (self.caller, player.key, reason)
+                string = "%s boots %s from channel.%s" % (self.caller, account.key, reason)
                 channel.msg(string)
-            # find all player's nicks linked to this channel and delete them
+            # find all account's nicks linked to this channel and delete them
             for nick in [nick for nick in
-                         player.character.nicks.get(category="channel") or []
+                         account.character.nicks.get(category="channel") or []
                          if nick.db_real.lower() == channel.key]:
                 nick.delete()
-            channel.disconnect(player)  # disconnect player
+            channel.disconnect(account)  # disconnect account
             CHANNELHANDLER.update()
         else:  # just display the subscribed channels with no extra info
             com_table = evtable.EvTable("|wchannel|n", "|wmy aliases|n",

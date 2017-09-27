@@ -16,7 +16,7 @@ class CmdVehicleDefault(MuxCommand):
     key = 'vehicle'
     locks = 'cmd:all()'
     help_category = 'Travel'
-    player_caller = True
+    account_caller = True
 
     def send_msg(self, message):
         """Send message internal and external to vehicle and optionally move vehicle."""
@@ -33,7 +33,7 @@ class CmdVehicle(CmdVehicleDefault):
     Usage:
       vehicle  display other commands available.
     """
-    aliases = ['board', 'enter', 'disembark', 'exit', 'leave', 'operate']
+    aliases = 'operate'
 
     def func(self):
         """ """
@@ -45,43 +45,15 @@ class CmdVehicle(CmdVehicleDefault):
         where = self.obj
         here = char.location
         outside = where.location
-        player = self.player
+        account = self.account
         setting = where.db.settings or {}
         if 'vehicle' in cmd:
-            player.msg('|wCommand list for %s%s|n:|/|C%s' % (where.STYLE, where.key, '|n, |C'.join(self.aliases)))
-        if 'board' in cmd or 'enter' in cmd:
-            if here == where:
-                player.msg("You are already aboard %s." % where.get_display_name(player))
-                return
-            entry_message = None
-            if 'entry' in where.db.messages:
-                entry_message = where.db.messages['entry']
-            if entry_message:
-                char.msg('%s%s|n %s' % (char.STYLE, char.key, entry_message))
-            player.msg("You board %s." % where.get_display_name(player))
-            if entry_message:
-                where.msg_contents('%s%s|n %s' % (char.STYLE, char.key, entry_message), exclude=char)
-            char.move_to(where)
-            if entry_message:
-                outside.msg_contents('%s%s|n %s' % (char.STYLE, char.key, entry_message))
-        if 'disembark' in cmd or 'exit' in cmd or 'leave' in cmd:
-            if here != where:
-                player.msg("You are not aboard %s." % where.get_display_name(player))
-                return
-            exit_message = None
-            if 'exit' in where.db.messages:
-                exit_message = where.db.messages['exit']
-            player.msg("You disembark %s." % where.get_display_name(player))
-            if exit_message:
-                self.send_msg('%s%s|n %s' % (char.STYLE, char.key, exit_message))
-            char.move_to(outside)
-            if exit_message:
-                char.msg('%s%s|n %s' % (char.STYLE, char.key, exit_message))
+            account.msg('|wCommand list for %s%s|n:|/|C%s' % (where.STYLE, where.key, '|n, |C'.join(self.aliases)))
         if 'operate' in cmd:
             if 'list' in opt:
                 if not where.db.settings:
                     where.db.settings = {}
-                player.msg('Listing %s%s|n control panel settings: |g%s'
+                account.msg('Listing %s%s|n control panel settings: |g%s'
                            % (where.STYLE, where.key, '|n, |g'.join('%s|n: |c%s' % (each, where.db.settings[each])
                                                                     for each in where.db.settings)))
                 return
@@ -112,7 +84,7 @@ class CmdVehicle(CmdVehicleDefault):
                 return
             self.send_msg("%s%s|n commands in-operable %s%s|n vehicle to %s." %
                           (char.STYLE, char.key, where.STYLE, where.key, args))
-            player.msg("%s%s|n commands in-operable %s%s|n vehicle to %s." %
+            account.msg("%s%s|n commands in-operable %s%s|n vehicle to %s." %
                        (char.STYLE, char.key, where.STYLE, where.key, args))
             self.send_msg("%s%s|n does nothing." % (where.STYLE, where.key))
-            player.msg("%s%s|n does nothing." % (where.STYLE, where.key))
+            account.msg("%s%s|n does nothing." % (where.STYLE, where.key))

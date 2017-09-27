@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 """
-Characters are (by default) Objects setup to be puppeted by Players.
+Characters are (by default) Objects setup to be puppeted by accounts.
 They are what you "see" in game. The Character class in this module
 is setup to be the "default" character type created by the default
 creation commands.
@@ -10,7 +10,11 @@ from typeclasses.tangibles import Tangible
 from evennia.utils.utils import lazy_property
 from traits import TraitHandler
 from world.helpers import make_bar, mass_unit
+from evennia.contrib.clothing import get_worn_clothes
+from evennia.utils import list_to_string
 # from evennia.utils.utils import delay  # Delay a follower's arrival after the leader
+from evennia.comms.models import ChannelDB, Msg  # To find and
+from evennia.comms.channelhandler import CHANNELHANDLER  # Send to public channel
 
 
 class Character(DefaultCharacter, Tangible):
@@ -23,11 +27,11 @@ class Character(DefaultCharacter, Tangible):
                     and its commands only be called by itself, not anyone else.
                     (to change things, use at_object_creation() instead)
     at_after_move - launches the "look" command
-    at_post_puppet(player) -  when Player disconnects from the Character, we
+    at_post_puppet(account) -  when account disconnects from the Character, we
                     store the current location, so the "unconnected" character
                     object does not need to stay on grid but can be given a
                     None-location while offline.
-    at_pre_puppet - just before Player re-connects, retrieves the character's
+    at_pre_puppet - just before account re-connects, retrieves the character's
                     old location and puts it back on the grid with a "charname
                     has connected" message echoed to the room
     """
@@ -64,7 +68,7 @@ class Character(DefaultCharacter, Tangible):
             for each in self.db.riders:
                 if each.location == self.location:
                     each.ndb.mover = self
-                    if not (each.has_player and each.at_before_move(destination)):
+                    if not (each.has_account and each.at_before_move(destination)):
                         continue
                     if each.db.settings and 'carry others' in each.db.settings and each.db.settings['carry others']\
                             is False:
@@ -75,6 +79,9 @@ class Character(DefaultCharacter, Tangible):
 
     def at_after_move(self, source_location):
         """Store last location and room then trigger the arrival look after a move. Reset doing to default."""
+        if self.db.messages and self.db.messages.get('location'):
+            loc_name = self.location.get_display_name(self, plain=True)
+            self.msg(self.db.messages.get('location') + loc_name)
         if source_location:  # Is "None" when moving from Nothingness. If so, do nothing.
             self.ndb.last_location = source_location
             if not source_location.destination:
@@ -87,8 +94,8 @@ class Character(DefaultCharacter, Tangible):
                     self.msg(text=(self.at_look(self.location), dict(type='look', window='room')))
             if source_location and self.db.followers and len(self.db.followers) > 0 and self.ndb.exit_used:
                 for each in source_location.contents:
-                    if not each.has_player or each not in self.db.followers or not self.access(each, 'view'):
-                        continue  # no player, not on follow list, or can't see character to follow, then do not follow
+                    if not each.has_account or each not in self.db.followers or not self.access(each, 'view'):
+                        continue  # no account, not on follow list, or can't see character to follow, then do not follow
                     # About to follow - check if follower is riding something:
                     riding = False
                     for thing in source_location.contents:
@@ -140,8 +147,8 @@ class Character(DefaultCharacter, Tangible):
             source_location (Object): The place we came from
         """
         here = self.location
-        if not source_location and self.location.has_player:
-            # This was created from nowhere and added to a player's
+        if not source_location and self.location.has_account:
+            # This was created from nowhere and added to a account's
             # inventory; it's probably the result of a create command.
             string = "You now have %s in your possession." % (self.get_display_name(here))
             here.msg(string)
@@ -195,7 +202,7 @@ class Character(DefaultCharacter, Tangible):
             self.nattributes.remove('riders')
         if self.db.settings and not self.db.settings.get('look arrive', default=True):
             awake = (con for con in self.location.contents if con != self
-                     and con.has_player and con.access(self, 'view'))
+                     and con.has_account and con.access(self, 'view'))
             awake_list = ", ".join(a.get_display_name(self, mxp='sense %s' % a.get_display_name(
                 self, plain=True), pose=True) for a in awake)
             awake_list = (' Awake here: ' + awake_list) if len(awake_list) > 0 else ''
@@ -207,51 +214,65 @@ class Character(DefaultCharacter, Tangible):
     def at_post_puppet(self):
         """
         Called just after puppeting has been completed and all
-        Player<->Object links have been established.
+        account<->Object links have been established.
+        NOTES: self.msg() or caller.msg(..., session=self.session)
+        sends to the session actually triggering the command.
+        account.sessions.all() exclude self.session could send
+        to all but the current session.
+        `self.account` and `self.sessions.get()` retrieves
+        account and sessions at this point; the last entry in the
+        list from `self.sessions.get()` is the latest Session puppeting this Object.
         """
-        # Inside your Command func(), use self.msg() or caller.msg(..., session=self.session)
-        # That will go only to the session actually triggering the command. You can then do player.sessions.all()
-        # and send to all but the current session.
-        # There is no way to know that unless the session sends themself as an argument to said method.
-        # The session has to be in an argument to that method, like you said.
-        # I see that the session is indeed available in the puppet_object method (which calls at_post_puppet)
-        # so I suppose we could extend that hook with a session argument.
-        # I think it may have originally been defined at a time when an object only ever had one session,
-        # so once you were puppeted you could easily retrieve it.
-        is_somewhere = self.location is not None
-        self.msg('\nYou assume the role of: %s\n' % self.get_display_name(self, pose=is_somewhere))
-        if is_somewhere:  # if puppet is somewhere
-            self.msg(self.at_look(self.location))  # look to see surroundings
-            if self.ndb.new_mail:
-                self.msg('\nYou have new mail in your %s mailbox.\n' % self.home.get_display_name(self))
+        sessions = self.sessions.get()
+        session = sessions[-1] if sessions else None
+        if len(sessions) == 1:
+            channel = ChannelDB.objects.channel_search('Public')
+            if channel[0]:
+                channel[0].msg('|c%s |gis now active.' % self.key, keep_log=True)
             text = 'fades into view' if self.location != self.home else 'awakens'
-            self.location.msg_contents('|g%s|n %s.' %
-                                       (self.get_display_name(self, color=False), text), from_obj=self)
+            for each in self.location.contents:
+                if not each.access(self, 'view') or each is self:
+                    continue
+                each.msg('|g%s|n %s.' % (self.get_display_name(each, color=False), text), from_obj=self)
+        is_somewhere = self.location is not None
+        if self.db.messages and self.db.messages.get('location'):
+            loc_name = self.location.get_display_name(self, plain=True)
+            self.msg(self.db.messages.get('location') + loc_name)
+        if session:
+            session.msg('\nYou assume the role of: %s\n' % self.get_display_name(self, pose=is_somewhere))
+            if is_somewhere:  # if puppet is somewhere
+                session.msg(self.at_look(self.location))  # look to see surroundings
+            session.msg('\nChecking for new mail in your mailbox. (@mail # to read message #)')
+            self.account.execute_cmd('@mail')
 
-    def at_post_unpuppet(self, player, session=None):
+    def at_post_unpuppet(self, account, session=None):
         """
-        Store characters in Nothingness when the player goes ooc/logs off,
+        Store characters in Nothingness when the account goes ooc/logs off,
         when characters are left in a room that is not home. Otherwise
-        character objects remain in the room after players leave.
+        character objects remain in the room after accounts leave.
         Args:
-            player (Player): The player object that just disconnected
+            account (account): The account object that just disconnected
                 from this object.
             session (Session): Session controlling the connection that
                 just disconnected.
         """
+        if self.has_account:  # if there's still a session controlling ...
+            return  # ... then there's nothing more to do.
         if self.location:
             # reason = ['Idle Timeout', 'QUIT', 'BOOTED', 'Lost Connection']  # TODO
             at_home = self.location == self.home
-
-            def message(obj, from_obj):
-                text = 'sleeps' if at_home else 'fades from view'
-                obj.msg('|r%s|n %s.' % (self.get_display_name(obj, color=False), text), from_obj=from_obj)
-
-            self.location.for_contents(message, exclude=[self], from_obj=self)
+            text = 'sleeps' if at_home else 'fades from view'
+            for each in self.location.contents:
+                if not each.access(self, 'view'):
+                    continue
+                each.msg('|r%s|n %s.' % (self.get_display_name(each, color=False), text), from_obj=self)
             self.db.prelogout_location = self.location
-
-            if not (at_home or self.has_player):  # if no sessions control it anymore, and its not home...
-                self.location = None  # store in Nothingness.
+            if not self.has_account:  # if no sessions control it anymore...
+                channel = ChannelDB.objects.channel_search('Public')
+                if channel[0]:
+                    channel[0].msg('|c%s |ris now inactive.' % self.key, keep_log=True)
+                if not at_home:  # ... and its not home...
+                    self.location = None  # store in Nothingness.
 
     def process_sdesc(self, sdesc, obj, **kwargs):
         """
@@ -308,13 +329,6 @@ class Character(DefaultCharacter, Tangible):
         pronoun = _GENDER_PRONOUN_MAP[gender][typ.lower()]
         return pronoun.capitalize() if typ.isupper() else pronoun
 
-    def get_mass(self):
-        mass = self.traits.mass.actual if self.traits.mass else 0
-        return reduce(lambda x, y: x+y.get_mass() if hasattr(y, 'get_mass') else 0, [mass] + self.contents)
-
-    def get_carry_limit(self):
-        return 80 * self.traits.health.actual
-
     def return_appearance(self, viewer):
         """This formats a description. It is the hook a 'look' command should call.
         Args:
@@ -322,8 +336,8 @@ class Character(DefaultCharacter, Tangible):
         """
         if not viewer:
             return ''
-        if not viewer.is_typeclass('typeclasses.players.Player'):
-            viewer = viewer.player  # make viewer reference the player object
+        if not viewer.is_typeclass('typeclasses.accounts.Account'):
+            viewer = viewer.account  # make viewer reference the account object
         char = viewer.puppet
         # get and identify all objects
         visible = (con for con in self.contents if con != viewer and
@@ -332,10 +346,11 @@ class Character(DefaultCharacter, Tangible):
         for con in visible:
             if con.destination:
                 exits.append(con)
-            elif con.has_player:
+            elif con.has_account:
                 users.append(con)
             else:
-                things.append(con)
+                if not con.db.worn:
+                    things.append(con)
         string = "\n%s" % self.get_display_name(viewer, mxp='sense %s' % self.get_display_name(viewer, plain=True))
         if self.location and self.location.tags.get('rp', category='flags'):
             pose = self.db.messages and self.db.messages.get('pose', None)
@@ -356,58 +371,30 @@ class Character(DefaultCharacter, Tangible):
             string += "%s" % desc_brief
         else:
             string += 'A shimmering illusion shifts from form to form.'
-        if exits:
-            string += "\n|wExits: " + ", ".join("%s" % e.get_display_name(viewer) for e in exits)
+        # ---- Allow clothes wearing to be seen
+        worn_string_list = []
+        clothes_list = get_worn_clothes(self, exclude_covered=True)
+        # Append worn, uncovered clothing to the description
+        for garment in clothes_list:
+            if garment.db.worn is True:  # If 'worn' is True,
+                worn_string_list.append(garment.name)  # just append the name.
+            # Otherwise, append the name and the string value of 'worn'
+            elif garment.db.worn:
+                worn_string_list.append("%s %s" % (garment.name, garment.db.worn))
+        if worn_string_list:  # Append worn clothes.
+            string += "|/|/%s is wearing %s." % (self, list_to_string(worn_string_list))
+        # ---- List things carried (excludes worn things)
         if users or things:
             user_list = ", ".join(u.get_display_name(viewer) for u in users)
             ut_joiner = ', ' if users and things else ''
             item_list = ", ".join(t.get_display_name(viewer) for t in things)
             string += "\n|wYou see:|n " + user_list + ut_joiner + item_list
+        # ---- Look Notify system:
         if self != char:
             if not (self.db.settings and 'look notify' in self.db.settings
                     and self.db.settings['look notify'] is False):
                 self.msg("%s just looked at you." % char.get_display_name(self))
         return string
-
-    def follow(self, caller):
-        """Set following agreement - caller follows character"""
-        if self == caller:
-            self.msg('You decide to follow your heart.')
-            return
-        action = 'follow'
-        if self.attributes.has('followers') and self.db.followers:
-            if caller in self.db.followers:
-                self.db.followers.remove(caller)
-                action = 'stop following'
-            else:
-                self.db.followers.append(caller)
-        else:
-            self.db.followers = [caller]
-        color = 'g' if action == 'follow' else 'r'
-        caller.location.msg_contents('|%s%s|n decides to %s {follower}.'
-                                     % (color, caller.key, action), from_obj=caller, mapping=dict(follower=self))
-
-    def mount(self, caller):
-        """Set riding agreement - caller rides character"""
-        if self == caller:
-            return
-        action = 'ride'
-        if self.attributes.has('riders') and self.db.riders:
-            if caller in self.db.riders:
-                self.db.riders.remove(caller)
-                action = 'stop riding'
-            else:
-                self.db.riders.append(caller)
-        else:
-            self.db.riders = [caller]
-        # caller is/was riding self invalidate caller riding anyone else in the room.
-        for each in caller.location.contents:
-            if each == caller or each == self or not each.db.riders or caller not in each.db.riders:
-                continue
-            each.db.riders.remove(caller)
-        color = 'g' if action == 'ride' else 'r'
-        caller.location.msg_contents('|%s%s|n decides to %s {mount}.'
-                                     % (color, caller.key, action), from_obj=caller, mapping=dict(mount=self))
 
 
 class NPC(Character):
@@ -422,40 +409,44 @@ class NPC(Character):
     def at_post_puppet(self):
         """
         Called just after puppeting has been completed and all
-        Player<->Object links have been established.
+        account<->Object links have been established.
         """
         self.msg("\nYou assume the role of %s.\n" % self.get_display_name(self))
         self.msg(self.at_look(self.location))
         if self.ndb.new_mail:
             self.msg('|/You have new mail in your %s mailbox.|/' % self.home.get_display_name(self))
+        if self.sessions.count() > 1:  # Show as pose if NPC already has a account.
+            for each in self.location.contents:
+                if not each.access(self, 'view'):
+                    continue
+                each.msg("%s looks more awake." % self.get_display_name(each), from_obj=self)
+        else:
+            for each in self.location.contents:
+                if not each.access(self, 'view'):
+                    continue
+                each.msg("|g%s|n awakens." % self.get_display_name(each, color=False), from_obj=self)
 
-        def message(obj, from_obj):
-            if self.sessions.count() > 1:  # Show as pose if NPC already has a player.
-                obj.msg("%s looks more awake." % self.get_display_name(obj), from_obj=from_obj)
-            else:
-                obj.msg("|g%s|n awakens." % self.get_display_name(obj, color=False), from_obj=from_obj)
-
-        self.location.for_contents(message, exclude=[self], from_obj=self)
-
-    def at_post_unpuppet(self, player, session=None):
+    def at_post_unpuppet(self, account, session=None):
         """
-        We store the character when the player goes ooc/logs off,
+        We store the character when the account goes ooc/logs off,
         when the character is left in a public or semi-public room.
         Otherwise the character object will remain in the room after
-        the player logged off ("headless", so to say).
+        the account logged off ("headless", so to say).
         Args:
-            player (Player): The player object that just disconnected
+            account (Account): The account object that just disconnected
                 from this object.
             session (Session): Session controlling the connection that
                 just disconnected.
         """
         if self.location:
-
-            def message(obj, from_obj):
-                if self.has_player:  # Show as pose if NPC still has a player.
-                    obj.msg("%s looks sleepier." % (self.get_display_name(obj)), from_obj=from_obj)
-                else:  # Show as gone if NPC has no player now.
-                    obj.msg("|r%s|n sleeps." % self.get_display_name(obj, color=False), from_obj=from_obj)
-
-            self.location.for_contents(message, exclude=[self], from_obj=self)
+            if self.has_account:  # Show as pose if NPC still being puppeted.
+                for each in self.location.contents:
+                    if not each.access(self, 'view'):
+                        continue
+                    each.msg("%s looks sleepier." % (self.get_display_name(each)), from_obj=self)
+            else:  # Show as sleeping if NPC has no account logged in.
+                for each in self.location.contents:
+                    if not each.access(self, 'view'):
+                        continue
+                    each.msg("|r%s|n sleeps." % self.get_display_name(each, color=False), from_obj=self)
             self.db.prelogout_location = self.location

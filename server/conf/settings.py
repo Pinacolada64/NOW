@@ -32,24 +32,37 @@ SERVERNAME = "NOW"
 
 TELNET_PORTS = [4000, 8888]
 
-INLINEFUNC_ENABLED = True
+WEBSERVER_PORTS = [(8000, 8001)]
 
-IDLE_TIMEOUT = 18000
+IDMAPPER_CACHE_MAXSIZE = 150
+
+INLINEFUNC_ENABLED = False  # Too buggy to use, currently.
+
+IDLE_TIMEOUT = 5 * 60 * 60  # 5 hours
+
+MULTISESSION_MODE = 1
+
+IRC_ENABLED = True  # @irc2chan Public = irc.furnet.org 7000 #NOW NOW
+
+IN_GAME_ERRORS = False  # Errors in console are sufficient.
+
+SEARCH_MULTIMATCH_REGEX = r"(?P<number>[0-9]+) (?P<name>.*)"
+SEARCH_MULTIMATCH_TEMPLATE = " {number} {name}{aliases}{info}\n"
 
 ENCODINGS = ["utf-8", "latin-1", "ISO-8859-1", "cp437"]
 
 ######################################################################
-# Evennia modules
+# Player settings
 ######################################################################
 
-
-######################################################################
-# Django web features
-######################################################################
-
-
-# The secret key is randomly seeded upon creation. It is used to sign
-# Django's cookies. Do not share this with anyone. Changing it will
-# log out all active web browsing sessions. Game web client sessions
-# may survive.
-SECRET_KEY = 'qLiEOAy+_Gxc;`eK/)?CQb_H#-p<2T]o|&s64vZR'
+HELP_MORE = False
+PERMISSION_HIERARCHY = ["Guest",  # NOTE: only used if GUEST_ENABLED=True
+                        "Denizen",
+                        "Citizen",
+                        "Helper",
+                        "Crafter",
+                        "Builder",
+                        "Helpstaff",
+                        "Mage",
+                        "Wizard",
+                        "Immortal"]

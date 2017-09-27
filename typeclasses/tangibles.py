@@ -26,7 +26,7 @@ class Tangible(DefaultObject):
 
         Args:
             self (Object, Character, Exit or Room):
-            viewer (TypedObject): The object or player that is looking
+            viewer (TypedObject): The object or account that is looking
                 at/getting information for this object.
         Kwargs:
             pose Return pose appended to name if True
@@ -44,11 +44,6 @@ class Tangible(DefaultObject):
         if kwargs.get('plain', False):  # "plain" means "without color, without db_id"
             color, db_id = [False, False]
         name = self.key
-        if self.location:
-            if self.tags.get('rp', category='flags') or self.location.tags.get('rp', category='flags'):
-                pass  # NOWTangible is in an RP flagged room.
-        elif self.tags.get('rp', category='flags'):
-            pass  # NOWTangible is an RP flagged object.
         display_name = ("%s%s|n" % (self.STYLE, name)) if color else name
         if mxp:
             display_name = "|lc%s|lt%s|le" % (mxp, display_name)
@@ -60,11 +55,17 @@ class Tangible(DefaultObject):
             display_name += ('|n' if color else '') + display_pose
         return display_name
 
-    def mxp_name(self, viewer, command):  # Depreciated. call obj.get_display_name(viewer, mxp=command)
-        """Returns the full styled and clickable-look name for the viewer's perspective as a string."""
-        print('*** Depreciated use of mxp_name ***')
-        print('%s / %s /%s' % (self.key, viewer.key, command))
-        return self.get_display_name(viewer, mxp=command) if viewer and self.access(viewer, 'view') else ''
+    def get_mass(self):
+        mass = self.traits.mass.actual if self.traits.mass else 0
+        if mass <= 0 and self.tags.get('weightless', category='flags'):
+            return mass  # Ignore mass of contents if this tangible is weight-free or inert.
+        return reduce(lambda x, y: x+y.get_mass() if hasattr(y, 'get_mass') else 0, [mass] + self.contents)
+
+    def get_limit(self):
+        # TODO: Apply health as a small factor.
+        mass = self.traits.mass.actual if self.traits.mass else 10
+        swr = self.traits.swr.actual if self.traits.swr else 1.0
+        return swr * mass - (self.get_mass() - mass)
 
     def private(self, source, category, text):
         """
@@ -86,15 +87,16 @@ class Tangible(DefaultObject):
             message += text
         self.msg(message)
 
-    def return_glance(self, viewer):
+    def return_glance(self, viewer, bool=False):
         """
         Displays the name or sdesc of the object with its room pose in a viewer-aware manner.
         If self is in Nothingness, shows inventory contents instead of room contents.
 
         Args:
             self (Object, Character, or Room):
-            viewer (TypedObject): The object or player that is looking
+            viewer (TypedObject): The object or account that is looking
                 at/getting information for this object.
+            bool (bool): Return True instead of a string list.
 
         Returns:
             name (str): A string of the name or sdesc containing the name of the objects
@@ -107,7 +109,7 @@ class Tangible(DefaultObject):
         else:
             visible = (con for con in self.contents if con != viewer and con.access(viewer, 'view'))
         for con in visible:
-            if con.has_player:
+            if con.has_account:
                 users.append(con)
             elif con.destination:
                 continue
@@ -119,8 +121,8 @@ class Tangible(DefaultObject):
             ut_joiner = ', ' if users and things else ''
             item_list = ", ".join(t.get_display_name(viewer, mxp='sense %s' % t.get_display_name(
                 viewer, plain=True), pose=True) for t in things)
-            return (user_list + ut_joiner + item_list).replace('\n', '').replace('.,', ';')
-        return '%sYou|n see nothing here.' % viewer.STYLE
+            return True if bool else (user_list + ut_joiner + item_list).replace('\n', '').replace('.,', ';')
+        return False if bool else '%sYou|n see nothing here.' % viewer.STYLE
 
     def return_detail(self, detail_key, detail_sense):
         """

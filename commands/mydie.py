@@ -19,7 +19,7 @@ class CmdMyDieDefault(MuxCommand):
     key = 'mydie'
     locks = 'cmd:all()'
     help_category = 'Game'
-    player_caller = True
+    account_caller = True
 
     def roll_dice(self, dicenum, dicetype, modifier=None, conditional=None, return_tuple=False):
         """many sided-dice roller"""
@@ -49,7 +49,7 @@ class CmdMyDieDefault(MuxCommand):
 
 class CmdMyDie(CmdMyDieDefault):
     """
-    Usage: 
+    Usage:
       Mydie[/option] [die name] [= character names/face name]
     Options:
     /hidden - tells the room what die is being rolled but only show results to self.
@@ -57,7 +57,7 @@ class CmdMyDie(CmdMyDieDefault):
     /new - Create a new die with name set this die as current die to roll.
     /add - add a face to the die name or current die, if no name given.
     /del (or rem) - remove the last face [or named face] from the particular die.
-    /choose - Set the default die for your player
+    /choose - Set the default die for your account
     /list (or show)  - show all die faces.
     /shuffle  - show all die faces in a shuffled order.
     /multi <n> - roll die n times.          (Roll, like dice - combinations )
@@ -83,20 +83,20 @@ class CmdMyDie(CmdMyDieDefault):
         where = self.obj  # Where the dice rolling action is. (On the dice object)
         here = char.location  # Where the roller is.
         # outside = where.location  # If you happen to be inside the dice, this is outside.
-        player = self.player
+        account = self.account
         my_die = char.db.dice  # Check if character has any dice sets stored on it.
         die = 'default'
         #  Does Die Exist?
-        if not my_die:  # Inform player how to create. Also suggest using help.
-            player.msg('You have no custom die yet. Use |y%s|g/new |w<|cdie name|w>|n to add a die.|/'
-                       'See: |ghelp mydie|n for more information' % cmd)
+        if not my_die:  # Inform user how to create. Also suggest using help.
+            account.msg('You have no custom die yet. Use |y%s|g/new |w<|cdie name|w>|n to add a die.|/'
+                        'See: |ghelp mydie|n for more information' % cmd)
             dice = where.db.dice if where.db.dice else self.EXAMPLE_SET
         else:
             dice = my_die
         if 'choose' in opt or 'set' in opt:
             if args not in dice:
-                player.msg('That die (%s) does not exist. Choose another or create that die first before using.')
-                player.msg('Continuing to use die %s' % dice[die])
+                account.msg('That die (%s) does not exist. Choose another or create that die first before using.')
+                account.msg('Continuing to use die %s' % dice[die])
         current = dice[dice[die]]
         # Is this Usage of Die or Modification of Die?
         if not rhs:  # If no equals sign was supplied, then using die, not modifying them.
@@ -112,10 +112,10 @@ class CmdMyDie(CmdMyDieDefault):
                 #  (assuming n not > face_count, else repeats from next deck), append result.
             else:  # A single roll.
                 result = char.ndb.roll_result[0]
-            if 'list' in opt or 'show' in opt or 'shuffle' in opt:  # Shows all the die faces (Only to player?)
+            if 'list' in opt or 'show' in opt or 'shuffle' in opt:  # Shows all the die faces (Only to account?)
                 face_count = len(char.ndb.roll_result)
                 faces = '|c' + '|w, |c'.join(my_die if 'shuffle' in opt else char.db.dice)  # Potentially shuffle.
-                player.msg('The current die, %s, has |g%i|n sides marked %s' % (current, face_count, faces))
+                account.msg('The current die, %s, has |g%i|n sides marked %s' % (current, face_count, faces))
             # Next, send result to appropriate parties per options.
             if 'secret' in opt or 'hidden' in opt:
                 char.msg('You rolled %s to get %s.' % (current, result))

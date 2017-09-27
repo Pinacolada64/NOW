@@ -18,14 +18,7 @@ screen is read and displayed by the unlogged-in "look" command.
 from django.conf import settings
 from evennia import utils
 
-CONNECTION_SCREEN = \
-r"""
-N  N   OOO  W   W
-NN  N OO OO W   W
-N N N O   O W W W
-N  NN OO OO W W W
- N  N  OOO   W W
-
+CONNECTION_SCREEN = r"""
 Welcome to the Novel Online World (NOW) 
 
 ========= a New Frontier in Text Based Online Gaming =========

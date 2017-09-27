@@ -16,6 +16,8 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 from evennia import default_cmds
 
 # from world.rpsystem import CmdSdesc, CmdEmote, CmdRecog, CmdMask  # RP commands used to be here.
+from evennia.contrib.mail import CmdMail
+from world.clothing import CmdWear, CmdRemove, CmdCover, CmdUncover, CmdGive
 
 # [Traversal of path-exits]
 from typeclasses.exits import CmdStop, CmdContinue, CmdBack, CmdSpeed
@@ -23,13 +25,14 @@ from typeclasses.exits import CmdStop, CmdContinue, CmdBack, CmdSpeed
 # [commands modules]
 from commands import prelogin
 from commands import exitdirections
+from commands.suntime import CmdAstral
 from commands.say import CmdSay, CmdOoc, CmdSpoof
 from commands.set import CmdSettings
 from commands.who import CmdWho
 from commands.desc import CmdDesc
 from commands.flag import CmdFlag
 from commands.home import CmdHome
-from commands.mail import CmdMail
+from commands.menu import CmdMenu
 from commands.pose import CmdPose
 from commands.quit import CmdQuit
 from commands.verb import CmdTry
@@ -48,8 +51,8 @@ from commands.inventory import CmdInventory
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
     The `CharacterCmdSet` contains general in-game commands available to
-    in-world Character objects. It is merged with the `PlayerCmdSet` when
-    a Player puppets a Character.
+    in-world Character objects. It is merged with the `AccountCmdSet` when
+    an Account puppets a Character.
     """
     key = 'DefaultCharacter'
 
@@ -61,28 +64,35 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.remove(default_cmds.CmdGet)
         self.remove(default_cmds.CmdSay)
         self.remove(default_cmds.CmdDrop)
+        self.remove(default_cmds.CmdGive)  # Now handled by world/clothing
         self.remove(default_cmds.CmdLook)   # Now handled by sense command, along with 4 other senses
         self.remove(default_cmds.CmdPose)
-        self.remove(default_cmds.CmdTime)   # Moved to player command
+        self.remove(default_cmds.CmdTime)   # Moved to account command
         self.remove(default_cmds.CmdAbout)
         self.remove(default_cmds.CmdAccess)
         self.remove(default_cmds.CmdSetHome)  # Replaced with home/set and home/here
         self.remove(default_cmds.CmdDestroy)  # Reuse instead of destroy database objects.
-        self.remove(default_cmds.CmdTeleport)  # Teleport haa cost and conditions.
+        self.remove(default_cmds.CmdTeleport)  # Teleport has cost and conditions.
 # [...]
         self.add(CmdOoc)
+        self.add(CmdSay)
         self.add(CmdTry)
         self.add(CmdDesc)
         self.add(CmdFlag)
+        self.add(CmdGive)
         self.add(CmdHome)
-        self.add(CmdMail)
+        self.add(CmdPose)
         self.add(CmdZone)
         self.add(CmdSpoof)
         self.add(CmdSummon)
         self.add(CmdWhisper)
         self.add(CmdInventory)
 # [...]
-        # RP commands used to be here.
+        # Clothing contrib commands
+        self.add(CmdWear)
+        self.add(CmdRemove)
+        self.add(CmdCover)
+        self.add(CmdUncover)
 # [...]
         self.add(CmdStop)
         self.add(CmdBack)
@@ -101,18 +111,18 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(exitdirections.CmdExitDown())
 
 
-class PlayerCmdSet(default_cmds.PlayerCmdSet):
+class AccountCmdSet(default_cmds.AccountCmdSet):
     """
-    This is the cmdset available to the Player at all times. It is
-    combined with the `CharacterCmdSet` when the Player puppets a
+    This is the cmdset available to the Account at all times. It is
+    combined with the `CharacterCmdSet` when the Account puppets a
     Character. It holds game-account-specific commands, channel
     commands, etc.
     """
-    key = 'DefaultPlayer'
+    key = 'DefaultAccount'
 
     def at_cmdset_creation(self):
-        """Populates the DefaultPlayer cmdset"""
-        super(PlayerCmdSet, self).at_cmdset_creation()
+        """Populates the DefaultAccount cmdset"""
+        super(AccountCmdSet, self).at_cmdset_creation()
         # any commands you add below will overload the default ones.
         self.remove(default_cmds.CmdCWho)
         self.remove(default_cmds.CmdCBoot)
@@ -126,7 +136,9 @@ class PlayerCmdSet(default_cmds.PlayerCmdSet):
         self.remove(default_cmds.CmdCdestroy)
         self.remove(default_cmds.CmdChannelCreate)
         self.add(CmdSay)
+        self.add(CmdTry)
         self.add(CmdWho)
+        self.add(CmdMail)
         self.add(CmdPose)
         self.add(CmdQuit)
         self.add(CmdTime)
@@ -169,4 +181,5 @@ class SessionCmdSet(default_cmds.SessionCmdSet):
         It prints some info.
         """
         super(SessionCmdSet, self).at_cmdset_creation()
+        self.add(CmdMenu)
         # any commands you add below will overload the default ones.

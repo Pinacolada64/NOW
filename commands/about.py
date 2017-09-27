@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from commands.command import MuxCommand
-from evennia.players.models import PlayerDB
+from evennia.accounts.models import AccountDB
 from evennia.utils import utils
 import os
 import sys
@@ -17,19 +17,19 @@ class CmdAbout(MuxCommand):
     key = 'about'
     help_category = 'Information'
     locks = 'cmd:all()'
-    player_caller = True
+    account_caller = True
 
     def func(self):
         """Display information about server or target"""
         char = self.character
-        player = self.player
+        account = self.account
         opt = self.switches
         args = unicode(self.args).strip()
         if 'last' in opt:
             if args:
                 return
-            recent_users = PlayerDB.objects.get_recently_connected_players()[:10]
-            player.msg(recent_users)
+            recent_users = AccountDB.objects.get_recently_connected_accounts()[:10]
+            account.msg(recent_users)
             return
         string = """
          |cEvennia|n %s|n

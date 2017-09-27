@@ -13,7 +13,7 @@ from evennia.utils.utils import lazy_property
 from traits import TraitHandler
 
 
-MOVE_DELAY = dict(stroll=16, walk=8, run=4, sprint=2, scamper=1)
+MOVE_DELAY = dict(stroll=16, walk=8, run=4, sprint=2, scamper=1)  # TODO Lookup, calculate
 
 
 class Exit(DefaultExit, Tangible):
@@ -63,8 +63,8 @@ class Exit(DefaultExit, Tangible):
         """
         if not viewer:
             return ''
-        if not viewer.is_typeclass('typeclasses.players.Player'):
-            viewer = viewer.player  # make viewer reference the player object
+        if not viewer.is_typeclass('typeclasses.accounts.Account'):
+            viewer = viewer.account  # make viewer reference the account object
         char = viewer.puppet
         here = char.location
         # get and identify all objects
@@ -73,7 +73,7 @@ class Exit(DefaultExit, Tangible):
         for con in visible:
             if con.destination:
                 exits.append(con)
-            elif con.has_player:
+            elif con.has_account:
                 users.append(con)
             else:
                 things.append(con)
@@ -86,7 +86,10 @@ class Exit(DefaultExit, Tangible):
         elif desc_brief:
             desc_seen += "%s" % desc_brief
         else:
-            desc_seen += "leads to %s" % self.destination.get_display_name(viewer, mxp='sense ' + self.destination.key)
+            leads_to = self.destination.get_display_name(
+                viewer, mxp='sense ' + self.destination.key) if self.destination else\
+                '|112Nothingness|n. |lcback|ltGo |gback|le.'
+            desc_seen += "leads to %s" % leads_to
         if exits:
             desc_seen += "\n|wExits: " + ", ".join(e.get_display_name(viewer) for e in exits)
         if users or things:
@@ -110,7 +113,7 @@ class Exit(DefaultExit, Tangible):
         traveller.ndb.exit_used = entry
         is_path = self.tags.get('path', category='flags') or False
         source_location = traveller.location
-        move_speed = traveller.db.move_speed or 'walk'
+        move_speed = traveller.db.move_speed or 'walk'  # TODO use Traits
         move_delay = MOVE_DELAY.get(move_speed, 8)
         if not traveller.at_before_move(destination):
             return False
@@ -176,9 +179,9 @@ class Exit(DefaultExit, Tangible):
     def at_after_traverse(self, traveller, source_location):
         """called by at_traverse just after traversing."""
         traveller.nattributes.remove('grid_loc_last')
-        entry = self.cmdset.current.commands[0].cmdstring  # The name/alias of the exit used to initiate traversal
-        if not self.db.grid_loc or not self.db.grid_locs:  # Object exit command display
-            print('%s> %r (%s->%s)' % (traveller, entry, source_location, traveller.location))
+        # entry = self.cmdset.current.commands[0].cmdstring  # The name/alias of the exit used to initiate traversal
+        # if not self.db.grid_loc or not self.db.grid_locs:  # Object exit command display  # DEBUG
+        #     print('%s> %r (%s->%s)' % (traveller, entry, source_location, traveller.location))  # DEBUG
 
     def at_msg_receive(self, text=None, **kwargs):
         """!"""
@@ -206,15 +209,15 @@ class CmdSpeed(Command):
         """Simply sets an Attribute used by the exit paths in default exits."""
         speed = self.args.lower().strip()
         if not self.args:
-            speed = self.caller.db.move_speed or 8
+            speed = self.caller.traits.speed.actual if self.caller.traits and self.caller.traits.speed.actual else 8
             self.caller.msg("You are set to move by %s." % SPEED_DESCS[speed])
             return
         if speed not in SPEED_DESCS:
             self.caller.msg("Usage: speed stroll||walk||run||sprint||scamper")
-        elif self.caller.db.move_speed == speed:
+        elif self.caller.db.move_speed == speed:  # TODO Update to Traits
             self.caller.msg("You are already set to move by %s." % SPEED_DESCS[speed])
         else:
-            self.caller.db.move_speed = speed
+            self.caller.db.move_speed = speed  # TODO Update to Traits
             self.caller.msg("You will now move by %s." % SPEED_DESCS[speed])
 
 
@@ -267,7 +270,7 @@ class CmdContinue(Command):
             caller.location.msg_contents("%s is going to %s." %
                                          (caller.get_display_name(caller.sessions),
                                           destination.get_display_name(caller.sessions)), exclude=caller)
-            caller.msg("You begin %s toward %s." % (SPEED_DESCS[caller.db.move_speed],
+            caller.msg("You begin %s toward %s." % (SPEED_DESCS[caller.db.move_speed],  # TODO use Traits
                                                     destination.get_display_name(caller.sessions)))
             if caller.move_to(destination, quiet=False):
                 start.at_after_traverse(caller, start)

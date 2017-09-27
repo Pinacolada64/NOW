@@ -2,30 +2,33 @@
 from commands.command import MuxCommand
 from evennia import syscmdkeys, Command
 from evennia.utils.utils import string_suggestions
+from world.verbs import VerbHandler
 
 
 class CmdTry(MuxCommand):
     """
     Actions a character can do to things nearby.
     Usage:
-      ppose <pose> = <verb> [noun]
-      try <verb> [noun]
-      <verb> [noun]
+      ppose <parse> = <pose>
+      try <parse>
+      <parse>
     """
     key = syscmdkeys.CMD_NOMATCH
     aliases = 'try'
     auto_help = False
     locks = 'cmd:all()'
     arg_regex = r'\s|$'
-    player_caller = True
+    account_caller = True
 
     def func(self):
         """
         Run the try command
-        TODO: Parse <verb>, <verb> <article> <noun>, <verb> <preposition> <noun>, <verb> <preposition> <article> <noun>.
         """
-        player = self.player
+        account = self.account
         char = self.character
+        if not char:
+            account.msg('You must be in-character to interact with objects.')
+            return
         args = self.args
         if args[3:] == 'try':
             args = args[:4]
@@ -39,80 +42,59 @@ class CmdTry(MuxCommand):
                     here.msg_contents('%s = %s' % (char.ndb.power_pose, args))  # Display as normal pose.
                     char.nattributes.remove('power_pose')  # Flush power pose
                 else:
-                    player.msg(self.suggest_command())
+                    account.msg(self.suggest_command())
                 return
             else:
-                good_targets = self.objects_allowing_verb(verb)
+                good_targets = self.verb_list(verb)
                 if noun:  # Look for an object that matches noun.
-                    obj = char.search(noun, quiet=True, candidates=[here] + here.contents + char.contents)
+                    surroundings = ([here] + here.contents + char.contents) if here else ([char] + char.contents)
+                    obj = char.search(noun, quiet=True, candidates=surroundings)
                     obj = obj[0] if obj else None
                 if not obj:
                     obj = good_targets[0] if len(good_targets) == 1 else None
-                player.msg('(%s/%s (%s))' % (verb, noun, obj))
+                account.msg('(%s/%s (%s))' % (verb, noun, obj))
                 if obj and obj in good_targets:
                     self.trigger_response(char, verb, obj)
                 else:
                     if good_targets:
                         if obj:
-                            player.msg('You can only %s %s|n.' % (verb, self.style_object_list(good_targets, char)))
+                            account.msg('You can only %s %s|n.' % (verb, self.style_object_list(good_targets, char)))
                         else:
-                            player.msg('You can %s %s|n.' % (verb, self.style_object_list(good_targets, char)))
+                            account.msg('You can %s %s|n.' % (verb, self.style_object_list(good_targets, char)))
                     else:
-                        player.msg('You can not %s %s|n.' % (verb, obj.get_display_name(player)))
+                        account.msg('You can not %s %s|n.' % (verb, obj.get_display_name(account)))
         else:
-            player.msg('|wVerbs to try|n: |g%s|n.' % '|w, |g'.join(verb_list))
+            account.msg('|wVerbs to try|n: |g%s|n.' % '|w, |g'.join(verb_list))
 
     @staticmethod
     def trigger_response(char, verb, obj):
         """
-        Triggers object method (check for method on object - check against forbidden list.)
-        Triggers command alias (tabled)
-        Triggers message (look for message)
+        Triggers verb method (check for method on verb handler - check against forbidden list.)
+        Triggers verb matched with alias, if initial verb is not a match.
+        Triggers message (look for message) on default verbs that have no method on the verb handler.
         """
-        if verb == 'get':
-            obj.get('', char)
-        elif verb == 'drop':
-            obj.drop('', char)
-        elif verb == 'read':
-            obj.read('', char)
-        elif verb == 'ride':
-            obj.mount(char)
-        elif verb == 'follow':
-            obj.follow(char)
-        elif verb == 'view':
-            char.player.execute_cmd('look %s' % obj.get_display_name(char, plain=True))
-        elif verb == 'examine':
-            char.player.execute_cmd('examine %s' % obj.get_display_name(char, plain=True))
-        elif verb == 'puppet':
-            char.player.execute_cmd('@ic %s' % obj.get_display_name(char, plain=True))
+        VerbHandler(char, verb, obj)
 
-        if obj.location and obj.db.messages and verb in obj.db.messages:
-            contents = obj.location.contents
-            for viewer in contents:
-                viewer.msg('%s %s' % (obj.get_display_name(viewer), obj.db.messages[verb]))
-
-    def verb_list(self):
-        """Scan location for objects that have verbs, and collect the verbs in a list."""
+    def verb_list(self, search_verb=None):
+        """
+        Scan location for objects that have verbs, and collect the verbs in a list or, if verb given,
+        scan location for objects that have a specific verb, and collect the objects in a list.
+        """
         collection = []
-        for obj in [self.character.location] + self.character.location.contents + self.character.contents:
+        char = self.character
+        here = char.location
+        surroundings = ([here] + here.contents + char.contents) if here else ([char] + char.contents)
+        for obj in surroundings:
             verbs = obj.locks
             for verb in ("%s" % verbs).split(';'):
                 element = verb.split(':')[0]
                 name = element[2:] if element[:2] == 'v-' else element
-                if obj.access(self.character, element):  # obj lock checked against character
+                if not obj.access(char, element):  # search_verb on object is inaccessible.
+                    continue
+                if name == search_verb:
+                    collection.append(obj)  # Collect objects that are accessible.
+                elif search_verb is None:
                     collection.append(name)
-        return list(set(collection))
-
-    def objects_allowing_verb(self, search_verb):
-        """Scan location for objects that have a specific verb, and collect the objects in a list."""
-        collection = []
-        for obj in [self.character.location] + self.character.location.contents + self.character.contents:
-            verbs = obj.locks
-            for verb in ("%s" % verbs).split(';'):
-                element = verb.split(':')[0]
-                name = element[2:] if element[:2] == 'v-' else element
-                if name == search_verb and obj.access(self.character, element):  # search_verb on object is accessible.
-                    collection.append(obj)
         return list(set(collection))
 
     @staticmethod

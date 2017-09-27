@@ -29,21 +29,24 @@ class CmdSense(MuxCommand):
         """Handle sensing objects in different ways, including look."""
         char = self.character
         here = char.location if char else None
-        player = self.player
+        account = self.account
         if not (char and here):
-            player.msg('You sense only |222Nothingness|n.')
+            account.msg('You sense only |222Nothingness|n.')
             message = '|gback|n or |ghome' if char else '|g@ic'
-            player.msg('(Type %s|n to return to the NOW.)' % message)
+            account.msg('(Type %s|n to return to the NOW.)' % message)
             return
         args = self.args.strip()
         cmd = self.cmdstring
         lhs = self.lhs.strip()
         rhs = self.rhs
         obj_string, aspect = [lhs, None] if "'s " not in lhs else lhs.rsplit("'s ", 1)
-        if obj_string:
-            print('Searching for: %s' % obj_string)
-        obj = char.search(obj_string, quiet=True,
-                          candidates=[here] + here.contents + char.contents) if args else [char]
+
+        if obj_string and obj_string.lower() in ('outside', 'out') and here and here.location:
+            char.msg('From within {}, you see:'.format(here.get_display_name(char)))
+            obj = [here.location]
+        else:
+            obj = char.search(obj_string, quiet=True,
+                              candidates=[here] + here.contents + char.contents) if args else [char]
         if obj:
             obj = obj[0]
             obj_string = obj.key
@@ -56,9 +59,9 @@ class CmdSense(MuxCommand):
                 obj = here
             sights = obj.return_glance(char)
             if sights:
-                player.msg('|/You glance at %s and see: %s ' % (obj.get_display_name(char), sights))
+                account.msg('|/You glance at %s and see: %s ' % (obj.get_display_name(char), sights))
             else:
-                player.msg('|/You glance at %s, but see nothing.' % obj.get_display_name(char))
+                account.msg('|/You glance at %s, but see nothing.' % obj.get_display_name(char))
             return
         # senses = obj.db.senses
         # details = obj.db.details
@@ -66,22 +69,22 @@ class CmdSense(MuxCommand):
             if not self.rhs:  # Nothing on the right side
                 # TODO: Delete and verify intent with switches. Mock-up command without switches.
                 # Scan senses before deleting details - make sure not to remove detail if another sense uses it.
-                player.msg('Functionality to delete aspects and details is not yet implemented.' % self.switches)
+                account.msg('Functionality to delete aspects and details is not yet implemented.' % self.switches)
 
                 if aspect:
-                    player.msg("|w%s|n (object) %s%s|n's |g%s|n (aspect)  =  |r (detail removed)" %
+                    account.msg("|w%s|n (object) %s%s|n's |g%s|n (aspect)  =  |r (detail removed)" %
                                (cmd, style, obj_string, aspect))
                 else:
-                    player.msg("|w%s|n (object) %s%s|n  =  |r (detail removed)" %
+                    account.msg("|w%s|n (object) %s%s|n  =  |r (detail removed)" %
                                (cmd, style, obj_string))
             else:
                 # TODO: Add and verify intent with switches. Mock-up command without switches.
-                player.msg('Functionality to add aspects and details is not yet implemented.' % self.switches)
+                account.msg('Functionality to add aspects and details is not yet implemented.' % self.switches)
                 if aspect:
-                    player.msg("|w%s|n (object) %s%s|n's |g%s|n (aspect)  =  |c%s|n (detail)" %
+                    account.msg("|w%s|n (object) %s%s|n's |g%s|n (aspect)  =  |c%s|n (detail)" %
                                (cmd, style, obj_string, aspect, rhs))
                 else:
-                    player.msg("|w%s|n (object) %s%s|n  =  |c%s|n (detail)" %
+                    account.msg("|w%s|n (object) %s%s|n  =  |c%s|n (detail)" %
                                (cmd, style, obj_string, rhs))
             return
         if cmd != 'l' and 'look' not in cmd:  # Doing non-LOOK stuff in here.
@@ -89,7 +92,7 @@ class CmdSense(MuxCommand):
                 char.msg('|wSensing...')
                 if obj:
                     if obj.db.senses:  # Object must be database object to be sensed.
-                        string = '* Senses available for %s: ' % obj.get_display_name(player)
+                        string = '* Senses available for %s: ' % obj.get_display_name(account)
                         string += ", ".join('|lc%s %s|lt|g%s|n|le'
                                             % (element, obj.get_display_name(char, plain=True), element)
                                             for element in obj.db.senses.keys())
@@ -100,10 +103,10 @@ class CmdSense(MuxCommand):
                                 aspect_list.append("|lc%s %s's %s|lt|g%s|n|le " % (element, obj.key, aspect, aspect)
                                                    if aspect else '')
                         if len(aspect_list) > 0:
-                            char.msg(obj.get_display_name(player) + ' has the following aspects that can be sensed: ' +
+                            char.msg(obj.get_display_name(account) + ' has the following aspects that can be sensed: ' +
                                      ''.join(aspect_list))
                     if obj != char:
-                        verb_msg = "%s responds to: " % obj.get_display_name(player)
+                        verb_msg = "%s responds to: " % obj.get_display_name(account)
                     else:
                         verb_msg = "%sYou|n respond to: " % char.STYLE
                     verbs = obj.locks
@@ -115,8 +118,8 @@ class CmdSense(MuxCommand):
                             continue
                         name = element[2:] if element[:2] == 'v-' else element
                         if obj.access(char, element):  # obj lock checked against actor
-                            collector_list.append("|lctry %s %s|lt|g%s|n|le " %\
-                                         (name, obj.get_display_name(char, plain=True), name))
+                            collector_list.append("|lctry %s %s|lt|g%s|n|le " %
+                                                  (name, obj.get_display_name(char, plain=True), name))
                         elif show_red:
                             collector_list.append("|r%s|n " % name)
                     char.msg(verb_msg + ''.join(collector_list))
@@ -130,23 +133,23 @@ class CmdSense(MuxCommand):
                         details_of = obj.db.details
                         if details_of and senses_of[aspect] in details_of:
                             entry = details_of[senses_of[aspect]]
-                            char.msg('%sYou|n sense %s from %s.' % (char.STYLE, entry, obj.get_display_name(player)))
+                            char.msg('%sYou|n sense %s from %s.' % (char.STYLE, entry, obj.get_display_name(account)))
                         else:
                             if aspect:
                                 char.msg("%sYou|n try to %s %s's %s, but can not."
-                                         % (char.STYLE, cmd, obj.get_display_name(player), aspect))
+                                         % (char.STYLE, cmd, obj.get_display_name(account), aspect))
                             else:
                                 char.msg("%sYou|n try to %s %s, but can not."
-                                         % (char.STYLE, cmd, obj.get_display_name(player)))
+                                         % (char.STYLE, cmd, obj.get_display_name(account)))
                     else:
                         if aspect:
                             char.msg("%sYou|n try to %s %s's %s, but can not."
-                                     % (char.STYLE, cmd, obj.get_display_name(player), aspect))
+                                     % (char.STYLE, cmd, obj.get_display_name(account), aspect))
                         else:
                             char.msg("%sYou|n try to %s %s, but can not."
-                                     % (char.STYLE, cmd, obj.get_display_name(player)))
+                                     % (char.STYLE, cmd, obj.get_display_name(account)))
                 else:
-                    char.msg('%sYou|n try to %s %s, but can not.' % (char.STYLE, cmd, obj.get_display_name(player)))
+                    char.msg('%sYou|n try to %s %s, but can not.' % (char.STYLE, cmd, obj.get_display_name(account)))
                 # First case: look for an object in room, inventory, room contents, their contents,
                 # and their contents contents with tagged restrictions, then if no match is found
                 # in their name or alias, look at the senses tables in each of these objects: The
@@ -179,5 +182,5 @@ class CmdSense(MuxCommand):
         if not obj.access(char, 'view'):
             char.msg("You are unable to sense '%s'." % args)
             return
-        player.msg(obj.return_appearance(char))  # get object's appearance as seen by char
+        account.msg(obj.return_appearance(char))  # get object's appearance as seen by char
         obj.at_desc(looker=char)  # the object's at_desc() method - includes look-notify.

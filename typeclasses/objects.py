@@ -7,12 +7,30 @@ but from their respective default implementations in the evennia library.
 If you want a class as a parent to change all tangible types, you can do
 so by editing the Tangible class in tangibles.py.
 """
+from evennia import DefaultObject
 from typeclasses.tangibles import Tangible
 from evennia.utils.utils import lazy_property
 from traits import TraitHandler
 from evennia.utils.evmenu import get_input
-from world.helpers import mass_unit, escape_braces
+from world.helpers import make_bar, mass_unit
 from commands.poll import PollCmdSet
+
+
+class Junk(DefaultObject):
+    """A minimal object - not intended to be tangible."""
+
+    STYLE = '|r'  # Nobody except superusers would see junk objects directly.
+
+    def basetype_setup(self):
+        """
+        Junk objects are meant as object placeholders.
+        """
+        super(Junk, self).basetype_setup()
+
+        # Set locks: can't do much with this object type
+        self.locks.add(';'.join([
+            'get:none()', 'view:none()', 'puppet:none()', 'tell:none()', 'examine:perm(Immortal)',
+            'edit:perm(Immortal)', 'control:perm(Immortal)', 'call:none()']))
 
 
 class Object(Tangible):
@@ -164,29 +182,15 @@ class Object(Tangible):
     """
     STYLE = '|334'
 
-    def reset(self):
-        """Resets the object - quietly sends it home or nowhere."""
-        self.location = self.home
-
-    @staticmethod
-    def junk(self):
-        """Tags the object as junk to decay."""
-        # TODO: Create a timer for final stage of decay.
-        pass
-
-    def read(self, pose, caller):
+    def basetype_setup(self):
         """
-        Implements the read command. This simply looks for an
-        Attribute "readable_text" on the object and displays that.
+        Make sure default objects are also dropable by default.
         """
-        read_text = self.db.readable_text or self.db.desc or self.db.desc_brief
-        obj_name = self.get_display_name(caller.sessions)
-        if read_text:  # Attribute read_text is defined.
-            caller.location.msg_contents("%s |g%s|n reads %s." % (pose, caller.get_display_name(caller), obj_name))
-            string = read_text
-        else:
-            string = "There is nothing to read on %s." % obj_name
-        caller.msg(string)
+        super(Object, self).basetype_setup()
+
+        self.locks.add(";".join([
+            "drop:all()",  # drop object
+            ]))
 
     def at_before_move(self, destination):
         """
@@ -243,44 +247,16 @@ class Object(Tangible):
             if self.tags.get('poll', category='flags'):
                 self.cmdset.add('commands.poll.PollCmdSet', permanent=True)
 
-    def drop(self, pose, caller):
-        """Implements the attempt to drop this object."""
-        if self.location != caller:  # If caller is not holding object,
-            caller.msg("You do not have %s." % self.get_display_name(caller))
-            return False
-        if self.move_to(caller.location, quiet=True, use_destination=False):
-            caller.location.msg_contents('%s|g%s|n drops {it}.' % (escape_braces(pose), caller.key),
-                                         from_obj=caller, mapping=dict(it=self))
-            self.at_drop(caller)  # Call at_drop() method.
-        return True
-
     @staticmethod
     def at_drop(caller):
         """Implements what the dropped object does when dropped by caller."""
         # TODO: Look for odrop or pose message, have self pose it to the room
         pass
 
-    def get(self, pose, caller):
-        """Implements the attempt to get this object."""
-        too_heavy, too_large = False, False
-        if caller == self:
-            caller.msg("%sYou|n can't get yourself." % caller.STYLE)
-        elif self.location == caller:
-            caller.msg("%sYou|n already have %s." % (caller.STYLE, self.get_display_name(caller)))
-        elif too_heavy:
-            caller.msg("%sYou|n can't lift %s; it is too heavy." % (caller.STYLE, self.get_display_name(caller)))
-        elif too_large:
-            caller.msg("%sYou|n can lift %s, but it is too large to carry." %
-                       (caller.STYLE, self.get_display_name(caller)))
-        elif self.move_to(caller, quiet=True):
-            caller.location.msg_contents('%s|g%s|n takes {it}.' % (escape_braces(pose), caller.key),
-                                         from_obj=caller, mapping=dict(it=self))
-            self.at_get(caller)  # calling hook method
-
-    def at_get(self, caller):
+    def at_get(self, getter):
         """Implements what the dropped object does when taken by caller."""
-        # TODO: Look for take message, have self pose to caller
-        caller.msg("%s is now in your possession." % self.get_display_name(caller, mxp='sense %s' % self.key))
+        # TODO: Look for take message on self, pose to getter
+        getter.msg("%s is now in your possession." % self.get_display_name(getter, mxp='sense %s' % self.key))
 
     def surface_put(self, pose, caller, connection):
         """Implements the surface connection of object by caller."""
@@ -325,13 +301,6 @@ class Object(Tangible):
         """
         return '|g%s|n' % sdesc
 
-    def get_mass(self):  # TODO: Add mass of objects on surface, also.
-        if not self.traits.mass:
-            mass = 1 if not self.db.mass else self.db.mass
-            self.traits.add('mass', 'Mass', 'static', mass)
-        mass = self.traits.mass.actual or 1
-        return reduce(lambda x, y: x+y.get_mass(), [mass] + self.contents)
-
     def return_appearance(self, viewer):
         """This formats a description. It is the hook a 'look' command
         should call.
@@ -354,6 +323,10 @@ class Object(Tangible):
         # get description, build string
         string = self.get_display_name(viewer, mxp='sense #%s' % self.id)
         string += " (%s)" % mass_unit(self.get_mass())
+        if self.traits.health:  # Add health bar if object has health.
+            gradient = ["|[300", "|[300", "|[310", "|[320", "|[330", "|[230", "|[130", "|[030", "|[030"]
+            health = make_bar(self.traits.health.actual, self.traits.health.max, 20, gradient)
+            string += " %s\n" % health
         if self.db.surface:
             string += " -- %s" % self.db.surface
         string += "\n"
@@ -364,7 +337,7 @@ class Object(Tangible):
         elif desc_brief:
             string += "%s" % desc_brief
         else:
-            string += 'A shimmering illusion shifts from form to form.'
+            string += 'A shimmering illusion of %s shifts from form to form.' % self.name
         if exits:
             string += "\n|wExits: " + ", ".join("%s" % e.get_display_name(viewer) for e in exits)
         if users or things:
@@ -375,7 +348,7 @@ class Object(Tangible):
         return string
 
 
-class Consumable(Object):  # TODO: State and analog decay. (State could be discrete analaog?)
+class Consumable(Object):  # TODO: State and analog decay. (State could be discrete analog?)
     """
     This is the consumable typeclass object, implementing an in-game
     object, to be consumed and decay, break, be eaten, drank, cast,

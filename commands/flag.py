@@ -20,7 +20,7 @@ class CmdFlag(MuxCommand):
     locks = 'cmd:all()'
     arg_regex = r'^/|\s|$'
     help_category = 'Building'
-    player_caller = True
+    account_caller = True
     FLAGS = {'street': 'cars can drive into here, can take taxi from here',
              'offroad': 'Same as "road" - but unpaved, slower speed',
              'outside': 'Object can land and ascend to/from sky',
@@ -44,7 +44,7 @@ class CmdFlag(MuxCommand):
         """ """
         char = self.character
         here = char.location
-        player = self.player
+        account = self.account
         cmd = self.cmdstring
         args = self.args.strip()
         lhs, rhs = [self.lhs, self.rhs]
@@ -52,13 +52,13 @@ class CmdFlag(MuxCommand):
         opt_list = [u'list', u'info', u'long', u'search']
 
         if not all(x in opt_list for x in opt):
-            player.msg("Not a valid switch for |y%s|n. Use only these: |g/%s" % (cmd, "|n, |g/".join(opt_list)))
+            account.msg("Not a valid switch for |y%s|n. Use only these: |g/%s" % (cmd, "|n, |g/".join(opt_list)))
             return
         if not opt or 'long' in opt:
             obj = here
             if not lhs:
                 if not here:
-                    player.msg("No flag can be put on this location. Trying flags on %s%s|n/" % (char.STYLE, char.key))
+                    account.msg("No flag can be put on this location. Trying flags on %s%s|n/" % (char.STYLE, char.key))
                     obj = char
             else:
                 obj = char.search(lhs, location=[char, char.location]) if args else here
@@ -68,14 +68,14 @@ class CmdFlag(MuxCommand):
             flags_obj_count = len(flags_obj)
             if flags_obj:  # returns a list of flags
                 if 'long' in opt:
-                    player.msg('Flag list on %s: (%s): ' % (obj.get_display_name(player), flags_obj_count))
+                    account.msg('Flag list on %s: (%s): ' % (obj.get_display_name(account), flags_obj_count))
                     for flag in flags_obj:
-                        player.msg('|c%s: |w%s|n|/' % (flag, self.FLAGS[flag]))
+                        account.msg('|c%s: |w%s|n|/' % (flag, self.FLAGS[flag]))
                 else:
-                    player.msg('Flag list on %s: (%s) = |c%s' %
-                               (obj.get_display_name(player), flags_obj_count, "|n, |c".join(a for a in flags_obj)))
+                    account.msg('Flag list on %s: (%s) = |c%s' %
+                               (obj.get_display_name(account), flags_obj_count, "|n, |c".join(a for a in flags_obj)))
             else:
-                player.msg('Flag list is not found on %s.' % obj.get_display_name(player))
+                account.msg('Flag list is not found on %s.' % obj.get_display_name(account))
             if rhs:  # If something is on the right hand side!
                 good_flag = [x for x in self.FLAGS if x in rhs]
                 overlap = [x for x in good_flag if x in flags_obj]
@@ -83,32 +83,32 @@ class CmdFlag(MuxCommand):
                 if overlap:
                     is_one = abs(len(overlap)) == 1
                     plural = '' if is_one else 's'
-                    player.msg('Flag%s already set: |y%s' % (plural, "|n, |y".join(a for a in overlap)))
+                    account.msg('Flag%s already set: |y%s' % (plural, "|n, |y".join(a for a in overlap)))
                 is_one = abs(len(to_set)) == 1
                 plural = '' if is_one else 's'
-                player.msg('Set flag%s: |g%s' % (plural, "|n, |g".join(a for a in to_set)))
+                account.msg('Set flag%s: |g%s' % (plural, "|n, |g".join(a for a in to_set)))
         if 'list' in opt:
-            player.msg('Displaying list of ' + ('|ymatching' if args else '|gall') + '|n flags:')
+            account.msg('Displaying list of ' + ('|ymatching' if args else '|gall') + '|n flags:')
             if args:  # Show list of matching flags
                 match_list = [x for x in self.FLAGS if x in args]  # This match is not "starts with" or partial.
-                player.msg('|c%s' % "|n, |c".join(match_list))
+                account.msg('|c%s' % "|n, |c".join(match_list))
             else:
-                player.msg('|c%s' % "|n, |c".join(a for a in self.FLAGS))
+                account.msg('|c%s' % "|n, |c".join(a for a in self.FLAGS))
         if 'info' in opt:
             good_flag = [x for x in self.FLAGS if x in args] if args else self.FLAGS
-            player.msg('Displaying info for ' + ('|ymatching' if args else '|gall') + '|n flags:')
-            player.msg("|/".join('|c%s|n - |w%s' % (a, self.FLAGS[a]) for a in good_flag))
+            account.msg('Displaying info for ' + ('|ymatching' if args else '|gall') + '|n flags:')
+            account.msg("|/".join('|c%s|n - |w%s' % (a, self.FLAGS[a]) for a in good_flag))
         if 'search' in opt:
             obj = search.search_tag(args, category='flags')
             object_count = len(obj)
             if object_count > 0:
-                match_string = ", ".join(o.get_display_name(player) for o in obj)
+                match_string = ", ".join(o.get_display_name(account) for o in obj)
                 if args:
                     string = "Found |w%i|n object%s with the flag '|g%s|n' set:\n %s" %\
                              (object_count, "s" if object_count > 1 else '', args, match_string)
                 else:
                     string = "Found |w%i|n object%s with any flag set:\n %s" % \
                              (object_count, "s" if object_count > 1 else '', match_string)
-                player.msg(string)
+                account.msg(string)
             else:
-                player.msg('Found no objects flagged: "|g%s"' % args)
+                account.msg('Found no objects flagged: "|g%s"' % args)

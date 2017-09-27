@@ -18,7 +18,7 @@ class CmdWhoUs(CmdWhoinfo):
 
     def func(self):
         """returns the list of online characters"""
-        nplayers = (SESSIONS.player_count())
+        count_accounts = (SESSIONS.account_count())
         self.caller.msg("[%s] Through the fog you see:" % self.key)
         session_list = SESSIONS.get_sessions()
         table = evtable.EvTable(border='none')
@@ -36,8 +36,8 @@ class CmdWhoUs(CmdWhoinfo):
         table.reformat_column(1, width=12, align='l')
         table.reformat_column(2, width=7, align='l')
         table.reformat_column(3, width=25, align='l')
-        is_one = nplayers == 1
-        string = '%s' % 'A' if is_one else str(nplayers)
+        is_one = count_accounts == 1
+        string = '%s' % 'A' if is_one else str(count_accounts)
         string += ' single ' if is_one else ' unique '
         plural = ' is' if is_one else 's are'
         string += 'account%s logged in.' % plural

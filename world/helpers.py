@@ -21,9 +21,11 @@ def make_bar(value, maximum, length, gradient):
 
 def mass_unit(value):
     """Present a suitable mass unit based on value"""
-    if not value or value <= 0:
-        return ''
+    if not value:
+        return 'unknown'
     value = float(value)
+    if value <= 0:
+        return 'weightless'
     if value <= 999:
         return '%s g' % str(value).rstrip('0').rstrip('.')
     if value <= 999999:
@@ -39,6 +41,7 @@ def mass_unit(value):
 
 
 def escape_braces(text):
+    text = text if text else ''
     text = text.replace('{', '{{')
     text = text.replace('}', '}}')
     return text

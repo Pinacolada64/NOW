@@ -2,15 +2,14 @@
 """
 Commands
 
-Commands describe the input the player can do to the world.
+Commands describe the input the account can do to the world.
 
 """
-from evennia import gametime
-from django.conf import settings
-from evennia import utils
+import time  # Check time since last activity
+from evennia.utils import inherits_from
 from evennia import default_cmds
 from evennia import Command as BaseCommand
-from evennia.commands.default.muxcommand import MuxCommand, MuxPlayerCommand
+from evennia.commands.default.muxcommand import MuxCommand, MuxAccountCommand
 
 
 class Command(BaseCommand):
@@ -32,21 +31,10 @@ class Command(BaseCommand):
         - at_post_command(): Extra actions, often things done after
             every command, like prompts.
     """
-    # these need to be specified
-
     key = "MyCommand"
     aliases = []
     locks = "cmd:all()"
     help_category = "General"
-
-    # optional
-    # auto_help = False      # uncomment to deactive auto-help for this command.
-    # arg_regex = r"\s.*?|$" # optional regex detailing how the part after
-    # the cmdname must look to match this command.
-
-    # (we don't implement hook method access() here, you don't need to
-    #  modify that unless you want to change how the lock system works
-    #  (in that case see evennia.commands.command.Command))
 
     def at_pre_cmd(self):
         """
@@ -129,13 +117,15 @@ class MuxCommand(default_cmds.MuxCommand):
     All args and list members are stripped of excess whitespace around the
     strings, but case is preserved.
     """
-    player_caller = True
+    account_caller = True  # By default, assume caller is account.
+    parse_using = ''  # If set, use additional left/right delimiter.
+    options = ()  # If set, use only these options, ignoring any others.
 
     def at_pre_cmd(self):
         """
         This hook is called before self.parse() on all commands
         """
-        pass
+        self.command_time = time.time()
 
     def parse(self):
         """
@@ -144,6 +134,29 @@ class MuxCommand(default_cmds.MuxCommand):
         that can be later accessed from self.func()
         """
         super(MuxCommand, self).parse()
+        # Parse mux options, comparing them against user-provided options, expanding abbreviations.
+        if self.options and self.switches:  # If specific options are known, test them against given options.
+            valid_options,  unuse_options, extra_options = [], [], []
+            for element in self.switches:
+                option_check = [each for each in self.options if each.lower().startswith(element.lower())]
+                if len(option_check) > 1:
+                    extra_options += option_check    # Either the option provided is ambiguous,
+                elif len(option_check) == 1:
+                    valid_options += option_check    # or it is a valid option abbreviation,
+                elif len(option_check) == 0:
+                    unuse_options += [element]       # or an extraneous option to be ignored.
+            if extra_options:
+                self.caller.msg('|g%s|n: |wAmbiguous option used. Did you mean /|C%s|w?' %
+                                (self.cmdstring, '|nor /|C'.join(extra_options)))
+            if valid_options:
+                self.switches = valid_options
+            if unuse_options:
+                plural = '' if len(unuse_options) == 1 else 's'
+                self.caller.msg('|g%s|n: |wExtra option%s "/|C%s|w" ignored.' %
+                                (self.cmdstring, plural, '|n, /|C'.join(unuse_options)))
+        # Now parse left/right sides using a custom delimiter, if provided.
+        if self.parse_using and self.parse_using in self.args:
+            self.lhs, self.rhs = self.args.split(self.parse_using, 1)  # At most, split once, into left and right parts.
 
     def func(self):
         """
@@ -159,42 +172,54 @@ class MuxCommand(default_cmds.MuxCommand):
         (after self.func()).
         """
         char = self.character
+        account = self.account
         here = char.location if char else None
-        who = self.player.key if self.player else (char if char else '-visitor-')
+        who = account.key if account else (char if char else '-visitor-')
         cmd = self.cmdstring if self.cmdstring != '__nomatch_command' else ''
-        print('%s> %s%s' % (who, cmd, self.raw))
         if here:
             if char.db.settings and 'broadcast commands' in char.db.settings and \
                             char.db.settings['broadcast commands'] is True:
                 for each in here.contents:
-                    if each.has_player:
+                    if each.has_account:
                         if each == self or each.db.settings and 'see commands' in each.db.settings and\
                                         each.db.settings['see commands'] is True:
-                            each.msg('|r(|w%s|r)|n %s%s|n' % (self.character.key, cmd, self.raw.replace('|', '||')))
+                            each.msg('|r(|w%s|r)|n %s%s|n' % (char.key, cmd, self.raw.replace('|', '||')))
+        command_time = time.time() - self.command_time
+        if account:
+            account.db._command_time_total = (0 if account.db._command_time_total is None
+                                             else account.db._command_time_total) + command_time
+        if char:
+            if char.traits.ct is None:
+                char.traits.add('ct', 'Core Time', 'counter')
+            if char.traits.cc is None:
+                char.traits.add('cc', 'Core Count', 'counter')
+            char.traits.ct.current += command_time
+            char.traits.cc.current += 1
+        print(u'{}> {}{} ({:.4f})'.format(who, cmd, self.raw, command_time))
 
 
-class MuxPlayerCommand(MuxCommand):
+class MuxAccountCommand(MuxCommand):
     """
-    This is an on-Player version of the MuxCommand. Since these commands sit
-    on Players rather than on Characters/Objects, we need to check
+    This is an on-Account version of the MuxCommand. Since these commands sit
+    on Accounts rather than on Characters/Objects, we need to check
     this in the parser.
-    Player commands are available also when puppeting a Character, it's
+    Account commands are available also when puppeting a Character, it's
     just that they are applied with a lower priority and are always
     available, also when disconnected from a character (i.e. "ooc").
-    This class makes sure that caller is always a Player object, while
+    This class makes sure that caller is always an Account object, while
     creating a new property "character" that is set only if a
-    character is actually attached to this Player and Session.
+    character is actually attached to this Account and Session.
     """
     def parse(self):
         """
         We run the parent parser as usual, then fix the result
         """
-        super(MuxPlayerCommand, self).parse()
+        super(MuxAccountCommand, self).parse()
 
-        if utils.inherits_from(self.caller, "evennia.objects.objects.DefaultObject"):
+        if inherits_from(self.caller, "evennia.objects.objects.DefaultObject"):
             self.character = self.caller  # caller is an Object/Character
-            self.caller = self.caller.player
-        elif utils.inherits_from(self.caller, "evennia.players.players.DefaultPlayer"):
-            self.character = self.caller.get_puppet(self.session)  # caller was already a Player
+            self.caller = self.caller.account
+        elif inherits_from(self.caller, "evennia.accounts.accounts.DefaultAccount"):
+            self.character = self.caller.get_puppet(self.session)  # caller was already an Account
         else:
             self.character = None

@@ -44,6 +44,8 @@ Example:
     Example:
 
         ```python
+        >>> obj.traits.add(key, name, trait_type='static', base=0, mod=0, min=None, max=None, extra={})
+        >>> obj.traits.add('hp', 'Health', 'gauge', 20, 0, 0, 20, {'nurse': True})
         >>> hp = obj.traits.hp
         >>> hp.actual
         100
@@ -284,14 +286,20 @@ class TraitHandler(object):
             is not found in traits collection.
         """
         if trait not in self.cache:
+            if self.attr_dict is None:
+                self.attr_dict = {}
             if trait not in self.attr_dict:
                 return None
             data = self.attr_dict[trait]
             self.cache[trait] = Trait(data)
         return self.cache[trait]
 
-    def add(self, key, name, trait_type='static', base=0, mod=0, min=None, max=None, extra={}):
+    def add(self, key, name, trait_type='static', base=0, mod=0, min=None, max=None, extra=None):
         """Create a new Trait and add it to the handler."""
+        if extra is None:
+            extra = {}
+        if self.attr_dict is None:
+            self.attr_dict = {}
         if key in self.attr_dict:
             raise TraitException("Trait '{}' already exists.".format(key))
 

@@ -23,13 +23,14 @@ settings file:
 
 from evennia.server.serversession import ServerSession as BaseServerSession
 
+
 class ServerSession(BaseServerSession):
     """
-    This class represents a player's session and is a template for
+    This class represents an account's session and is a template for
     individual protocols to communicate with Evennia.
 
-    Each player gets one or more sessions assigned to them whenever they connect
-    to the game server. All communication between game and player goes
+    Each account gets one or more sessions assigned to them whenever they connect
+    to the game server. All communication between game and account goes
     through their session(s).
     """
     pass

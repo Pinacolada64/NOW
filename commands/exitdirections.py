@@ -35,13 +35,13 @@ class CmdExit(MuxCommand):
     arg_regex = r'^/|\s|$'
     help_category = 'Travel'
     auto_help = True
-    player_caller = True
+    account_caller = True
 
     def func(self):
         """Command for all simple exit directions."""
         you = self.character
         loc = you.location
-        player = self.player
+        account = self.account
         cmd = self.cmdstring
         switches = self.switches
         args = self.args.strip()
@@ -51,7 +51,7 @@ class CmdExit(MuxCommand):
         switches_list = [u'add', u'del', u'tun', u'both', u'none', u'new', u'go', u'show']
 
         if switches and not all(x in switches_list for x in switches):
-            player.msg("You used an unknown switch for |530%s|n. Use only these: |g/%s" %
+            account.msg("You used an unknown switch for |530%s|n. Use only these: |g/%s" %
                        (self.key, "|n, |g/".join(switches_list)))
             return
 
@@ -65,7 +65,7 @@ class CmdExit(MuxCommand):
             print("Lock: %s" % lockstring)
             print("=====")
             """
-            if not player.check_permstring('Builders'):
+            if not account.check_permstring('Builders'):
                 you.msg("You must have |wBuilders|n or higher access to create a new room.")
                 return None
 
@@ -78,15 +78,15 @@ class CmdExit(MuxCommand):
 
             typeclass = settings.BASE_ROOM_TYPECLASS
             room = {'name': name, 'aliases': aliases}
-            lockstring = "control:id(%s) or perm(Immortals); delete:id(%s)" \
-                         " or perm(Wizards); edit:id(%s) or perm(Wizards)"
-            lockstring = lockstring % (self.caller.dbref, self.caller.dbref, self.caller.dbref)
+            lockstring = "control:pid({0}) or perm(Immortals); delete:pid({0})" \
+                         " or perm(Wizards); edit:pid({0}) or perm(Wizards); get:false()"\
+                .format(account.id)
             r = create.create_object(typeclass, room['name'], aliases=room['aliases'], report_to=you)
             r.locks.add(lockstring)
             alias_string = room['aliases']
             if r.aliases.all():
                 alias_string = " |w(|c%s|w)|n" % "|n, |c".join(r.aliases.all())
-            player.msg("|gCreated room %s%s of type |m%s." % (r.get_display_name(player), alias_string, typeclass))
+            account.msg("|gCreated room %s%s of type |m%s." % (r.get_display_name(account), alias_string, typeclass))
             return r or None
 
         def find_by_name(search):
@@ -108,31 +108,31 @@ class CmdExit(MuxCommand):
             """"Command for adding an exit - checks location and permissions."""
             results = find_by_name(self.args)
             if not results:
-                player.msg('Destination "|r%s|n" was not valid.' % args)
+                account.msg('Destination "|r%s|n" was not valid.' % args)
                 result = None
             else:
                 result = results[0]  # Arbitrarily select the first result of usually only one.
             ways_add[direction] = result
             you_add.msg("|ySearch found|n (%s)" % result.get_display_name(you) if result else None)
             if not result:
-                player.msg('Destination "|r%s|n" was not valid.' % args)
+                account.msg('Destination "|r%s|n" was not valid.' % args)
                 return None
             if ways_add[direction]:
                 if loc_add.access(you_add, 'edit'):
                     if ways_add[direction].access(you_add, 'control'):
                         loc_add.db.exits = ways_add
                         you_add.msg("|gAdded|n exit |lc%s|lt|530%s|n|le from %s to %s." %
-                                    (self.key, self.key, loc_add.get_display_name(player),
-                                     ways_add[direction].get_display_name(player)))
+                                    (self.key, self.key, loc_add.get_display_name(account),
+                                     ways_add[direction].get_display_name(account)))
                     else:
                         you_add.msg("You do not control the destination, so can not connect an exit to it.")
                 else:
                     you_add.msg("You have no permission to edit here.")
                 return ways_add[direction]
-            player.msg("You typed command (|y%s|n), switches (|%s|n), with no valid destination." %
+            account.msg("You typed command (|y%s|n), switches (|%s|n), with no valid destination." %
                        (cmd, switches))
-            player.msg('Destination "|r%s|n" was not valid.' % args)
-            return None 
+            account.msg('Destination "|r%s|n" was not valid.' % args)
+            return None
 
         def back_dir(x):
             return {'n': 's', 's': 'n', 'e': 'w', 'w': 'e',
@@ -154,24 +154,24 @@ class CmdExit(MuxCommand):
                 if dest_tun.access(you_tun, 'control'):
                     dest_tun.db.exits = tun_ways
                     you_tun.msg("|gAdded|n exit |530%s|n back from %s to %s." %
-                                (long_dir(back_dir(dir_tun)), dest_tun.get_display_name(player),
-                                 loc_tun.get_display_name(player)))
+                                (long_dir(back_dir(dir_tun)), dest_tun.get_display_name(account),
+                                 loc_tun.get_display_name(account)))
                 else:
                     you_tun.msg("You do not control the destination, so can not connect an exit to it.")
 
         if switches:  # Provide messages giving feedback for Tria
             switch_list = '/' + '/'.join(switches)
             if args:
-                player.msg("Showing direction, switches, destination: |y%s|g%s |y%s" %
+                account.msg("Showing direction, switches, destination: |y%s|g%s |y%s" %
                            (cmd, switch_list, args))
             else:
-                player.msg("Showing direction and switches: |y%s|g%s|n, but no destination was given." %
+                account.msg("Showing direction and switches: |y%s|g%s|n, but no destination was given." %
                            (cmd, switch_list))
                 if 'add' in switches or 'new' in switches or 'both' in switches:
-                    player.msg("Without a destination, |g/add|n or |g/new|n can not be done.")
+                    account.msg("Without a destination, |g/add|n or |g/new|n can not be done.")
         else:
             if args:
-                player.msg("Showing direction and destination: |y%s %s|n (No switches were provided - nothing to do.)"
+                account.msg("Showing direction and destination: |y%s %s|n (No switches were provided - nothing to do.)"
                            % (cmd, args))
         if 'new' in switches and not args:
             you.msg("|g%s|r/new|n requires a destination room to be given, e.g. |g%s/new |yWilderness" % (cmd, cmd))
@@ -196,19 +196,19 @@ class CmdExit(MuxCommand):
                     if loc.access(you, 'edit'):
                         del(ways[direction])
                         loc.db.exits = ways
-                        you.msg("|rRemoved|n exit |530%s|n from %s." % (self.key, loc.get_display_name(player)))
+                        you.msg("|rRemoved|n exit |530%s|n from %s." % (self.key, loc.get_display_name(account)))
                     if ('tun' in switches or 'none' in switches) and tunnel_ways:
                         if dest.access(you, 'edit'):
                             del(tunnel_ways[tunnel_way])
                             dest.db.exits = tunnel_ways
                             you.msg("|rRemoved|n exit |530%s|n from %s." %
-                                    (long_dir(tunnel_way), dest.get_display_name(player)))
+                                    (long_dir(tunnel_way), dest.get_display_name(account)))
                         else:
                             you.msg("You have no permission to edit here.")
                 elif 'add' in switches or 'both' in switches:
                     if loc.access(you, 'edit'):
                         you.msg("Exit |530%s|n to %s leading to %s already exists here." %
-                                (self.key, loc.get_display_name(player), dest.get_display_name(player)))
+                                (self.key, loc.get_display_name(account), dest.get_display_name(account)))
                     else:
                         you.msg("You have no permission to edit here.")
                 if ('tun' in switches or 'both' in switches) and not ('del' in switches or 'none' in switches):
@@ -283,7 +283,7 @@ class CmdExit(MuxCommand):
                 dest = add(you, loc, ways)
             elif 'del' in switches or 'none' in switches:
                 if 'tun' in switches or 'both' in switches:
-                    # TODO: If 'tun' option is also used - 
+                    # TODO: If 'tun' option is also used -
                     # there is no easy way to find it to delete it.
                     pass
                 else:
@@ -306,7 +306,7 @@ class CmdExit(MuxCommand):
             if not switches:
                 you.msg("You cannot travel %s." % self.key)
         if 'show' in switches and 'go' not in switches:
-            if not player.check_permstring('Helpstaff'):
+            if not account.check_permstring('Helpstaff'):
                 you.msg("You must have |gHelpstaff|n or higher access to use this.")
                 return None
             if you.location.attributes.has('exits'):  # Does an 'exits' attribute exist?

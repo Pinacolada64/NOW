@@ -18,25 +18,32 @@ class CmdInventory(MuxCommand):
     arg_regex = r'^/|\s|$'
 
     def func(self):
-        """check inventory"""
+        """
+        check inventory, listing carried and worn items,
+        and optionally, their weight.
+        """
         you = self.character
         items = you.contents
-        mass = you.traits.mass.actual if you.traits.mass else 0
-        if not items:
-            if mass:
-                string = 'You (%s) are not carrying anything.' % mass_unit(mass)
+        items_not_worn = []
+
+        wear_table = evtable.EvTable(border="header")
+        for item in items:
+            if item.db.worn:
+                wear_table.add_row("|C%s|n" % item.name, item.db.desc or "")
             else:
-                string = 'You are not carrying anything.'
-        else:
-            table = evtable.EvTable(border='header')
-            for item in items:
-                i_mass = mass_unit(item.get_mass()) if hasattr(item, 'get_mass') else 0
-                second = '(|y%s|n) ' % i_mass if 'weight' in self.switches else ''
-                second += item.db.desc_brief or item.db.desc or ''
-                table.add_row('%s' % item.get_display_name(you.sessions, mxp=('sense %s' % item.key)),
-                              second or '')
-            my_mass, my_total_mass = [mass, you.get_mass() if hasattr(you, 'get_mass') else 0]
-            string = "|wYou (%s) and what you carry (%s) total |y%s|n:\n%s" %\
-                     (mass_unit(mass), mass_unit(my_total_mass - my_mass),
-                      mass_unit(my_total_mass), table)
+                items_not_worn.append(item)
+        mass = you.traits.mass.actual if you.traits.mass else 0
+        table = evtable.EvTable(border='header')
+        for item in items_not_worn:
+            i_mass = mass_unit(item.get_mass()) if hasattr(item, 'get_mass') else 0
+            second = '(|y%s|n) ' % i_mass if 'weight' in self.switches else ''
+            second += item.db.desc_brief or item.db.desc or ''
+            table.add_row('%s' % item.get_display_name(you.sessions, mxp=('sense %s' % item.key)),
+                          second or '')
+        my_mass, my_total_mass = [mass, you.get_mass() if hasattr(you, 'get_mass') else 0]
+        string = "|wYou (%s) and your possessions (%s) total |y%s|n:\n%s" %\
+                 (mass_unit(mass), mass_unit(my_total_mass - my_mass),
+                  mass_unit(my_total_mass), table)
+        if not wear_table.nrows == 0:
+            string += "|/|wYou are wearing:\n%s" % wear_table
         you.msg(string)

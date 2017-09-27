@@ -2,14 +2,15 @@
 """
 Rooms are simple containers that need no location of their own.
 """
-import random  # Random weather events
 import time  # Check time since last activity
-from evennia.server.sessionhandler import SESSIONS  # Checking sessions for active players in room
+import random  # Random weather events
+from math import sqrt  # Distance formula for coordinate
+from evennia.server.sessionhandler import SESSIONS  # Checking sessions for active accounts in room
 from typeclasses.tangibles import Tangible
 from evennia.utils.utils import lazy_property
 from traits import TraitHandler
-from evennia import TICKER_HANDLER
-from evennia.comms.models import ChannelDB, Msg
+from evennia import TICKER_HANDLER  # TICKERS for weather events
+from evennia.comms.models import ChannelDB, Msg  # Sending active/inactive status to public channel
 from evennia.comms.channelhandler import CHANNELHANDLER
 from evennia import CmdSet  # For the class Grid
 from evennia import default_cmds  # For the class Grid's commands
@@ -17,13 +18,11 @@ from evennia import default_cmds  # For the class Grid's commands
 
 class Room(Tangible):
     """
-    Rooms are like any Object, except their location is None
-    (which is default). They also use basetype_setup() to
-    add locks so they cannot be puppeted or picked up.
-    (to change that, use at_object_creation instead)
-
-    See examples/object.py for a list of
-    properties and methods available on all Objects.
+    Rooms' location is usually None (which is default), but represent
+    geographic locations with coordinates (x, y, and z) that
+    are stored as tags, allowing for an efficient and quick search in the
+    database, and simplify the task when retrieving a room at a given
+    position, or looking for rooms around a given position.
     """
     STYLE = '|y'
 
@@ -35,7 +34,7 @@ class Room(Tangible):
         Args:
             viewer (Object): Object doing the looking.
         """
-        if not viewer:
+        if not (viewer and viewer.has_account):
             return ''
         # get and identify all objects visible to the viewer, excluding the viewer.
         visible = (con for con in self.contents if con != viewer and con.access(viewer, 'view'))
@@ -88,9 +87,8 @@ class Room(Tangible):
             string += "\n|wVisible exits|n: |lcback|lt|gBack|n|le to %s." % viewer.db.last_room.get_display_name(viewer)
         if self.ndb.weather_last:
             string += '|/|*%s|n' % self.ndb.weather_last
-        within = self.return_glance(viewer)  # Glance to see what is within the room that can be seen.
-        if within:  # If anything can be seen, list it with the other room details.
-            string += ("\n|wHere you find:|n " + within)
+        if self.return_glance(viewer, bool=True):  # Glance to see what is within the room that can be seen
+            string += ("\n|wHere you find:|n " + self.return_glance(viewer))  # Glance again to list items.
         return string
 
     def announce_move_from(self, destination):
@@ -118,8 +116,8 @@ class Room(Tangible):
             source_location (Object): The place we came from
         """
         name = self.name
-        if not source_location and self.location.has_player:
-            # This was created from nowhere and added to a player's
+        if not source_location and self.location.has_account:
+            # This was created from nowhere and added to a account's
             # inventory; it's probably the result of a create command.
             string = "You now have %s%s|n in your possession." % (self.STYLE, name)
             self.location.msg(string)
@@ -135,7 +133,7 @@ class Room(Tangible):
     def at_object_creation(self):
         """Called when room is first created"""
         self.db.desc_brief = "This is a default room."
-        
+
     def at_object_receive(self, new_arrival, source_location):
         """
         When an object enters a room we tell other objects in the room
@@ -148,9 +146,9 @@ class Room(Tangible):
             source_location (Object): the previous location of new_arrival.
         """
         if self.tags.get('rp', category='flags') and not new_arrival.attributes.has('_sdesc'):
-            sdesc = new_arrival.db.species if new_arrival.attributes.has('species') else new_arrival.key
+            sdesc = self.db.messages and self.db.messages.get('species') or new_arrival.key
             new_arrival.sdesc.add(sdesc)
-        if new_arrival.has_player:  # and not new_arrival.is_superuser: # this is a character
+        if new_arrival.has_account:  # and not new_arrival.is_superuser: # this is a character
             if self.tags.get('weather', category='flags'):
                 if not self.nattributes.has('weather_time'):
                     self.attempt_weather_update(1.00)  # 100% chance of update on initial arrival.
@@ -229,6 +227,118 @@ class Room(Tangible):
         else:
             self.attempt_weather_update(0.20)
 
+    @classmethod
+    def get_room_at(cls, x, y, z):
+        """
+        Return the room at the given location or None if not found.
+        Args:
+            x (int): the X coord.
+            y (int): the Y coord.
+            z (int): the Z coord.
+        Return:
+            The room at this location (Room) or None if not found.
+        """
+        rooms = cls.objects.filter(
+                db_tags__db_key=str(x), db_tags__db_category="coordx").filter(
+                db_tags__db_key=str(y), db_tags__db_category="coordy").filter(
+                db_tags__db_key=str(z), db_tags__db_category="coordz")
+        if rooms:
+            return rooms[0]
+
+        return None
+
+    def get_rooms_near(self, distance):
+        """A shortcut into get_rooms_around that is
+         some distance from this room."""
+        x = int(self.tags.get(category="coordx"))
+        y = int(self.tags.get(category="coordy"))
+        z = int(self.tags.get(category="coordz"))
+        return self.get_rooms_around(x, y, z, distance)
+
+    @classmethod
+    def get_rooms_around(cls, x, y, z, distance):
+        """Return the list of rooms around the given coords.
+        This method returns a list of tuples (distance, room) that
+        can easily be browsed.  This list is sorted by distance (the
+        closest room to the specified position is always at the top
+        of the list).
+        Args:
+            x (int): the X coord.
+            y (int): the Y coord.
+            z (int): the Z coord.
+            distance (int): the maximum distance to the specified .
+        Returns:
+            A list of tuples containing the distance to the specified
+            position and the room at this distance.  Several rooms
+            can be at equal distance from the position.
+        """
+        # Performs a quick search to only get rooms in a kind of rectangle
+        x_r = list(reversed([str(x - i) for i in range(0, distance + 1)]))
+        x_r += [str(x + i) for i in range(1, distance + 1)]
+        y_r = list(reversed([str(y - i) for i in range(0, distance + 1)]))
+        y_r += [str(y + i) for i in range(1, distance + 1)]
+        z_r = list(reversed([str(z - i) for i in range(0, distance + 1)]))
+        z_r += [str(z + i) for i in range(1, distance + 1)]
+        wide = cls.objects.filter(
+                db_tags__db_key__in=x_r, db_tags__db_category="coordx").filter(
+                db_tags__db_key__in=y_r, db_tags__db_category="coordy").filter(
+                db_tags__db_key__in=z_r, db_tags__db_category="coordz")
+
+        # We now need to filter down this list to find out whether
+        # these rooms are really close enough, and at what distance
+        rooms = []
+        for room in wide:
+            x2 = int(room.tags.get(category="coordx"))
+            y2 = int(room.tags.get(category="coordy"))
+            z2 = int(room.tags.get(category="coordz"))
+            distance_to_room = sqrt(
+                    (x2 - x) ** 2 + (y2 - y) ** 2 + (z2 - z) ** 2)
+            if distance_to_room <= distance:
+                rooms.append((distance_to_room, room))
+
+        # Finally sort the rooms by distance
+        rooms.sort(key=lambda tup: tup[0])
+        return rooms
+
+    def _get_x(self):
+        """Return the X coordinate or None."""
+        x = self.tags.get(category="coordx")
+        return int(x) if isinstance(x, str) else None
+
+    def _set_x(self, x):
+        """Change the X coordinate."""
+        old = self.tags.get(category="coordx")
+        if old is not None:
+            self.tags.remove(old, category="coordx")
+        self.tags.add(str(x), category="coordx")
+    x = property(_get_x, _set_x)
+
+    def _get_y(self):
+        """Return the Y coordinate or None."""
+        y = self.tags.get(category="coordy")
+        return int(y) if isinstance(y, str) else None
+
+    def _set_y(self, y):
+        """Change the Y coordinate."""
+        old = self.tags.get(category="coordy")
+        if old is not None:
+            self.tags.remove(old, category="coordy")
+        self.tags.add(str(y), category="coordy")
+    y = property(_get_y, _set_y)
+
+    def _get_z(self):
+        """Return the Z coordinate or None."""
+        z = self.tags.get(category="coordz")
+        return int(z) if isinstance(z, str) else None
+
+    def _set_z(self, z):
+        """Change the Z coordinate."""
+        old = self.tags.get(category="coordz")
+        if old is not None:
+            self.tags.remove(old, category="coordz")
+        self.tags.add(str(z), category="coordz")
+    z = property(_get_z, _set_z)
+
 
 class RealmEntry(Room):
     """
@@ -245,8 +355,8 @@ class RealmEntry(Room):
     def at_object_creation(self):
         """Called when the room is first created."""
         super(RealmEntry, self).at_object_creation()
-        self.db.desc = "An entry point for the realm, this room checks" \
-                       " the realm-specific requirements before allowing entry."
+        self.db.desc_brief = "An entry point for the realm, this room checks " \
+                             "the realm-specific requirements before allowing entry."
 
     def at_object_receive(self, character, source_location):
         """Assign properties on characters"""
@@ -282,7 +392,7 @@ class CmdSetGridRoom(CmdSet):
 
 class CmdGridMotion(default_cmds.MuxCommand):
     """
-    Parent class for all simple exit-directions. 
+    Parent class for all simple exit-directions.
     Actual exit objects superseded these in every way.
 
     Grid locations are stored on the Grid room that is navigated by these commands.
@@ -291,7 +401,7 @@ class CmdGridMotion(default_cmds.MuxCommand):
     arg_regex = r'^/|\s|$'
     auto_help = True
     help_category = 'Travel'
-    player_caller = True
+    account_caller = True
 
     def func(self):
         """Command for all simple exit directions."""
@@ -391,7 +501,7 @@ class CmdGrid(CmdGridMotion):
     key = 'grid'
     help_category = 'Building'
     locks = 'cmd:perm(Builders)'
-    player_caller = True
+    account_caller = True
 
     def func(self):
         """Command to manage all grid room properties."""
@@ -542,7 +652,7 @@ class CmdGrid(CmdGridMotion):
             if 'there' in self.switches:
                 if here:
                     you.ndb.grid_loc = there
-                    name = '%s - %s'% (loc.get_display_name(you), loc.point(here, 'name'))
+                    name = '%s - %s' % (loc.get_display_name(you), loc.point(here, 'name'))
                     you.msg('|yYou have been moved to Current edit location at %s|w @ %r' % (name, coord))
                 else:
                     here = there

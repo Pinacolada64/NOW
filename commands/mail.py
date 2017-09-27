@@ -21,7 +21,7 @@ class CmdMail(MuxCommand):
     Mail a private letter to another character or
     show your last <number> of letters (default is 5)
     Usage:
-      mail[/switches] [<player>,<player>,... = <message>]
+      mail[/switches] [<account>,<account>,... = <message>]
       mail <number>
     Options:
       last   shows your last sent correspondence.
@@ -30,7 +30,7 @@ class CmdMail(MuxCommand):
     key = 'mail'
     locks = 'cmd:not pperm(mail_banned) and at_home()'
     help_category = 'Communication'
-    player_caller = True
+    account_caller = True
 
     def mail_check(self):
         char = self.character

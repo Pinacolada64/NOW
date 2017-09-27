@@ -1,7 +1,7 @@
 """
 Commands
 
-Commands describe the input the player can do to the game.
+Commands describe the input the account can do to the game.
 
 """
 import math
@@ -640,7 +640,7 @@ class CmdAlly(MuxCommand):
             # If no arguments, list allies.
             if not self.args:
                 if len(self.caller.db.Allies) == 0:
-                    # Tell the player their fighter has no friends and is a cool badass.
+                    # The fighter has no friends and is a cool bad ass.
                     coollist = ["You walk alone", "A lone wolf", "None match your skill", "Trust only yourself",
                                 "It's you against the world", "The sole survivor"]
                     coolmessage = coollist[randint(0, (len(coollist) - 1))]
@@ -1591,7 +1591,7 @@ class CmdEnterGame(MuxCommand):
             if special_count > 5:
                 char.msg("You have more than 5 special moves. You can only have 5! Remove some before continuing.")
                 return
-        # From here, the checks won't stop the player from entering the game, but will warn them first.
+        # From here, the checks won't stop the account from entering the game, but will warn them first.
         if not self.args or self.args != "anyway":
             anyway = False
             special_count = 0

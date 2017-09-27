@@ -36,11 +36,39 @@ See the `@spawn` command and `evennia.utils.spawner` for more info.
 
 """
 
-#from random import randint
+OBJECT = {'typeclass': 'typeclasses.objects.Object'}
+
+CHARACTER = {'typeclass': 'typeclasses.characters.Character'}
+
+CONSUMABLE = {'typeclass': 'typeclasses.objects.Consumable'}
+
+WEARABLE = {'typeclass': 'world.clothing.Item'}
+
+HAT = {'prototype': 'WEARABLE'}
+
+TOOL = {'typeclass': 'typeclasses.objects.Tool'}
+
+VEHICLE = {'typeclass': 'typeclasses.objects.Vehicle'}
+
+DISPENSER = {'typeclass': 'typeclasses.objects.Dispenser'}
+
+NPC = {'typeclass': 'typeclasses.characters.NPC'}
+
+ROOM = {'typeclass': 'typeclasses.rooms.Room'}
+
+ENTRY = {'typeclass': 'typeclasses.rooms.RealmEntry'}
+
+GRID = {'typeclass': 'typeclasses.rooms.Grid'}
+
+EXIT = {'typeclass': 'typeclasses.exits.Exit'}
+
+JUNK = {'typeclass': 'typeclasses.objects.Junk'}
+
+# from random import randint
 #
-#NOBODY = {}
+# NOBODY = {}
 #
-#GOBLIN = {
+# GOBLIN = {
 # "key": "goblin grunt",
 # "health": lambda: randint(20,30),
 # "resists": ["cold", "poison"],
@@ -48,23 +76,23 @@ See the `@spawn` command and `evennia.utils.spawner` for more info.
 # "weaknesses": ["fire", "light"]
 # }
 #
-#GOBLIN_WIZARD = {
+# GOBLIN_WIZARD = {
 # "prototype": "GOBLIN",
 # "key": "goblin wizard",
 # "spells": ["fire ball", "lighting bolt"]
 # }
 #
-#GOBLIN_ARCHER = {
+# GOBLIN_ARCHER = {
 # "prototype": "GOBLIN",
 # "key": "goblin archer",
 # "attacks": ["short bow"]
-#}
+# }
 #
-#ARCHWIZARD = {
+# ARCHWIZARD = {
 # "attacks": ["archwizard staff"],
-#}
+# }
 #
-#GOBLIN_ARCHWIZARD = {
+# GOBLIN_ARCHWIZARD = {
 # "key": "goblin archwizard",
 # "prototype" : ("GOBLIN_WIZARD", "ARCHWIZARD")
-#}
+# }

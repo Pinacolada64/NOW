@@ -27,14 +27,16 @@ class CmdDesc(MuxCommand):
     """
     Describe yourself!
     Usage:
-      desc [description]
-    Switches:
+      desc[/option] [description]
+    Options:
     /edit  - Use a line-based editor similar to vi for more advanced editing.
     /brief - Add a brief description, 65 characters or less.
+    /side - Adds a side description (inside container, outside of room)
 
     Add a description to your character, visible to characters who look at you.
     """
     key = 'desc'
+    options = ('edit', 'brief', 'side')
     locks = 'cmd:all()'
     arg_regex = r'^/|\s|$'
 
@@ -64,7 +66,7 @@ class CmdDesc(MuxCommand):
             obj.msg('Exited editor.')
 
         char.db.evmenu_target = obj  # launch the editor
-        EvEditor(obj, loadfunc=load, savefunc=save, quitfunc=quit, key='desc', persistent=True)
+        EvEditor(obj, loadfunc=load, savefunc=save, quitfunc=quit, key='desc')
         return
 
     def func(self):
@@ -87,7 +89,10 @@ class CmdDesc(MuxCommand):
                 contents = caller.location.contents
                 for obj in contents:
                     obj.msg(msg)
-                caller.db.desc = user_input.strip()
+                if 'side' in self.switches:
+                    caller.db.desc_side = user_input.strip()
+                else:
+                    caller.db.desc = user_input.strip()
 
             get_input(char, "Type your description now, and then |g[enter]|n: ", desc_callback)
             return
@@ -95,5 +100,8 @@ class CmdDesc(MuxCommand):
             self.caller.db.desc_brief = self.args[0:65].strip()
             self.caller.msg("Your brief description has been saved: %s" % self.caller.db.desc_brief)
             return
-        char.db.desc = self.args.strip()
+        if 'side' in self.switches:
+            char.db.desc_side = self.args
+        else:
+            char.db.desc = self.args
         char.msg('You successfully set your description.')
