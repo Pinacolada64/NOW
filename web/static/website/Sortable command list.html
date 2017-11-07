@@ -16,6 +16,10 @@
 
 </head>
 <body>
+<!-- IE < 10 does not like giving a tbody a height.  The workaround here applies the scrolling to a wrapped <div>. -->
+<!--[if lte IE 9]>
+<div class="old_ie_wrapper">
+<!--<![endif]-->
 <table class="sortable, fixed_headers" style="margin: 2em">
 
 <thead>
@@ -530,8 +534,12 @@ as you enter/edit data.
 </tbody>
 <tfoot></tfoot>
 </table>
+<!--[if lte IE 9]>
+</div>
+<!--<![endif]-->
 
-This is main body of my content. I have a footnote link for this line <a id="footnote-1-ref" href="#footnote-1">[1]</a>. Then, I have some more content. Some of it is interesting and it has some footnotes as well
+<p>This is main body of my content. I have a footnote link for this line <a id="footnote-1-ref" href="#footnote-1">[1]</a>.
+Then, I have some more content. Some of it is interesting and it has some footnotes as well.</p>
 <a id="footnote-2-ref" href="#footnote-2">[2]</a>.
 
 <pre>
