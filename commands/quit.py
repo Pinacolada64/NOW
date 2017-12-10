@@ -23,7 +23,7 @@ class CmdQuit(MuxAccountCommand):
         """hook function"""
         account = self.account
         bye = '|RDisconnecting|n'
-        exit_msg = 'Hope to see you again, soon.'
+        exit_msg = 'Hope to see you again, soon! A survey is available at https://goo.gl/forms/yCyLpF6JsAhhUgGz2 for your thoughts'
         reason = self.args.strip() if self.args else 'Quitting'
         if reason:
             bye += " ( |w%s|n ) " % reason
