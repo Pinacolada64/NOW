@@ -17,20 +17,26 @@ documentation found here: https://github.com/evennia/evennia/wiki.
 Plenty of beginner's tutorials can be found here:
 http://github.com/evennia/evennia/wiki/Tutorials.
 
-After the full install of Evennia, outside the evennia folder,
-while operating the pyenv as directed by Evennia's install
-and operation proceedure, before installing this game code,
+Install Evennia as normal, up to the point where the evennia command is working in your virtualenv.
+    
+    git clone https://github.com/Pinacolada64/NOW.git (creates a new cloned NOW folder)
+    cd NOW
+    
+We already include a `settings.py` file, but you can do
 
-    evennia --init NOW
+    evennia --init settings
 
- If you have no existing database for your game, `cd NOW` then
+To start a new one in `NOW/server/conf/`
+(Please don't forget to change SECRET_KEY, as it allows for more safety)
+
+If you have no existing database for your game, `cd NOW` then
  initialize a new database using:
 
     evennia migrate
 
-To start the server, `cd` to this directory and run
+To start the server run
 
-    evennia -i start
+    evennia start
 
 You will see console output, but can disconnect with Control-D or exit.
 Evennia stays running in daemon mode and displays output to the console.
@@ -40,7 +46,3 @@ connect using a MUD client on localhost:4000.  You can also use
 the web client by pointing a browser to
 
     http://localhost:8000
-
-Within it is the game's main configuration file, Evennia will
-create a default configuration file; you don't need to change
-it to get started): `NOW/server/conf/settings.py`
