@@ -1,7 +1,26 @@
 # Welcome to Novel Online World!![Pangolin in motion](https://github.com/Pinacolada64/NOW/blob/master/web/static/website/images/NOW-icon.png)
 
-This directory is the directory that contains the NOW assets in
-development, and does not actually mirror the operating NOW server.
+# Connecting to the live game
+
+Game status page (who is on):
+
+Disregard the expired security certificate warning from your browser.
+(We realize this can be an issue for security-conscious individuals, we shall endeavour to update the security certificate as soon as we can.)
+
+    https://now.supernormality.net/
+    
+Web-based client:
+
+    https://now.supernormality.net/webclient/
+
+MUD client:
+
+    now.supernormality.net:4010
+
+# GitHub repository information
+
+This directory contains the NOW assets in development, and does not
+actually mirror the operating NOW server.
 
 If you are cloning NOW, be aware that this is the customized code
 in development, and not the full code for the server.
