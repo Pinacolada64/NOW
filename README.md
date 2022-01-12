@@ -17,9 +17,9 @@ documentation found here: https://github.com/evennia/evennia/wiki.
 Plenty of beginner's tutorials can be found here:
 http://github.com/evennia/evennia/wiki/Tutorials.
 
-Install Evennia as normal, up to the point where the evennia command is working in your virtualenv.
+Install Evennia as normal, up to the point where the `evennia` command is working in your virtualenv.
     
-    git clone https://github.com/Pinacolada64/NOW.git (creates a new cloned NOW folder)
+    git clone https://github.com/Pinacolada64/NOW.git # create a new cloned NOW folder
     cd NOW
     
 We already include a `settings.py` file, but you can do
@@ -27,7 +27,7 @@ We already include a `settings.py` file, but you can do
     evennia --init settings
 
 To start a new one in `NOW/server/conf/`
-(Please don't forget to change SECRET_KEY, as it allows for more safety)
+(Please don't forget to change `SECRET_KEY`, as it allows for more safety)
 
 If you have no existing database for your game, `cd NOW` then
  initialize a new database using:
@@ -38,7 +38,7 @@ To start the server run
 
     evennia start
 
-You will see console output, but can disconnect with Control-D or exit.
+You will see console output, but can disconnect with `Control` + `D`, or `exit`.
 Evennia stays running in daemon mode and displays output to the console.
 
 Make sure to create a superuser when asked. By default you can now
