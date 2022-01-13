@@ -58,7 +58,7 @@ ENCODINGS = ["utf-8", "latin-1", "ISO-8859-1", "cp437"]
 HELP_MORE = False
 STARTER_PLAYER_SDESC='This is a new {adjective} {species}'
 STARTER_PLAYER_DESC='Perhaps you might like to suggest it |gdesc|n itself and/or |gchange species to something|n beside what it is not, a total newb.|/|/A |gdesc/brief adj spe|n will make it easier for them to be seen.  Either way its nice to |ghelp|n them out if they are finding it challenging.'
-PERMISSION_HIERARC	HY = ["Guest",  # NOTE: only used if GUEST_ENABLED=True
+PERMISSION_HIERARCHY = ["Guest",  # NOTE: only used if GUEST_ENABLED=True
                         "Denizen",
                         "Citizen",
                         "Helper",
