@@ -1,6 +1,6 @@
 # Welcome to Novel Online World!![Pangolin in motion](https://github.com/Pinacolada64/NOW/blob/master/web/static/website/images/NOW-icon.png)
 
-# Connecting to the live game
+## Connecting to the live game
 
 Game status page (who is on):
 
@@ -17,7 +17,7 @@ MUD client:
 
     now.supernormality.net:4010
 
-# GitHub repository information
+## GitHub repository information
 
 This directory contains the NOW assets in development, and does not
 actually mirror the operating NOW server.
@@ -28,7 +28,7 @@ in development, and not the full code for the server.
 The prerequisite install of the latest Evennia is required. Be aware
 that NOW runs atop Evennia in a separate game folder named NOW.
 
-# Getting started with Evennia's install
+## Getting started with Evennia's install
 
 It's highly recommended that you look up Evennia's extensive
 documentation found here: https://github.com/evennia/evennia/wiki.
@@ -39,21 +39,21 @@ http://github.com/evennia/evennia/wiki/Tutorials.
 Install Evennia as normal, up to the point where the `evennia` command is working in your virtualenv.
     
     git clone https://github.com/Pinacolada64/NOW.git # create a new cloned NOW folder
-    cd NOW
+    cd NOW                                            # change to NOW directory
     
-We already include a `settings.py` file, but you can do
+We already include a `settings.py` file, but you can do:
 
     evennia --init settings
 
 To start a new one in `NOW/server/conf/`
 (Please don't forget to change `SECRET_KEY`, as it allows for more safety)
 
-If you have no existing database for your game, `cd NOW` then
- initialize a new database using:
+If you have no existing database for your game:
 
-    evennia migrate
+    cd NOW             # change to NOW directory
+    evennia migrate    # initialize a new database
 
-To start the server run
+To start the server, run:
 
     evennia start
 
@@ -61,7 +61,7 @@ You will see console output, but can disconnect with `Control` + `D`, or `exit`.
 Evennia stays running in daemon mode and displays output to the console.
 
 Make sure to create a superuser when asked. By default you can now
-connect using a MUD client on localhost:4000.  You can also use 
-the web client by pointing a browser to
+connect using a MUD client on `localhost:4000`.  You can also use 
+the web client by pointing a browser to:
 
     http://localhost:8000
